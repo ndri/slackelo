@@ -15,3 +15,9 @@ game_2 = slackelo.create_game(
 
 print(game_2)
 print(slackelo.get_channel_leaderboard("mario_kart"))
+
+game_3 = slackelo.create_game(
+    "mario_kart", [["player5"], ["player1"], ["player4"], ["player2"]]
+)
+print(game_3)
+print(slackelo.get_channel_leaderboard("mario_kart"))

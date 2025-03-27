@@ -193,17 +193,24 @@ class Slackelo:
         return channel_player["rating"]
 
     def get_channel_leaderboard(self, channel_id: str, limit: int = 10):
-        """Get the leaderboard for a specific channel."""
+        """
+        Get the leaderboard for a specific channel.
+
+        Returns player ratings along with the number of games played in the channel.
+        """
         leaderboard = self.db.execute_query(
             """
-            SELECT p.user_id, cp.rating
+            SELECT p.user_id, cp.rating, COUNT(pg.game_id) as games_played
             FROM channel_players cp
             JOIN players p ON cp.user_id = p.user_id
+            LEFT JOIN player_games pg ON p.user_id = pg.user_id
+            LEFT JOIN games g ON pg.game_id = g.id AND g.channel_id = ?
             WHERE cp.channel_id = ?
+            GROUP BY p.user_id, cp.rating
             ORDER BY cp.rating DESC
             LIMIT ?
             """,
-            (channel_id, limit),
+            (channel_id, channel_id, limit),
         )
         return leaderboard
 
