@@ -204,8 +204,9 @@ class Slackelo:
             FROM channel_players cp
             JOIN players p ON cp.user_id = p.user_id
             LEFT JOIN player_games pg ON p.user_id = pg.user_id
-            LEFT JOIN games g ON pg.game_id = g.id AND g.channel_id = ?
+            LEFT JOIN games g ON pg.game_id = g.id
             WHERE cp.channel_id = ?
+            AND (g.channel_id = ? OR g.channel_id IS NULL)
             GROUP BY p.user_id, cp.rating
             ORDER BY cp.rating DESC
             LIMIT ?
