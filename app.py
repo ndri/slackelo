@@ -97,10 +97,7 @@ def create_game(ack, command, say):
         # Parse player rankings with ties
         ranked_player_ids = parse_player_rankings(text)
 
-        if (
-            len(ranked_player_ids) < 2
-            or sum(len(group) for group in ranked_player_ids) < 2
-        ):
+        if sum(len(group) for group in ranked_player_ids) < 2:
             say("A game must have at least 2 players.")
             return
 
