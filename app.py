@@ -239,12 +239,12 @@ def undo_last_game(ack, command, say):
         game_timestamp = slackelo.undo_last_game(channel_id)
 
         # Format the timestamp
-        game_time = datetime.fromtimestamp(game_timestamp).strftime(
+        game_time = datetime.utcfromtimestamp(game_timestamp).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
 
         say(
-            f"Last game from {game_time} has been undone. All player ratings have been reverted."
+            f"Last game from {game_time} UTC has been undone. All player ratings have been reverted."
         )
 
     except Exception as e:
