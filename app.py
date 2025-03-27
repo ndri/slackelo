@@ -12,7 +12,6 @@ from slack_bolt.adapter.flask import SlackRequestHandler
 from dotenv import load_dotenv
 from slackelo import Slackelo
 
-
 # Initialize Flask and load environment variables
 app = Flask(__name__)
 load_dotenv()
@@ -31,8 +30,8 @@ slackelo = Slackelo(os.environ.get("DB_PATH", "slackelo.db"), "init.sql")
 
 # Helper function to extract user IDs from mentions
 def extract_user_ids(text):
-    """Extract user IDs from Slack mentions in the format <@USER_ID>"""
-    return re.findall(r"<@([A-Z0-9]+)>", text)
+    """Extract user IDs from Slack mentions in the format <@USER_ID|username>"""
+    return re.findall(r"<@([A-Z0-9]+)\|?[^>]*>", text)
 
 
 # Helper function to parse player rankings with ties
