@@ -62,6 +62,15 @@ def parse_player_rankings(text):
     return ranked_players
 
 
+def get_ordinal_suffix(num):
+    """Return the ordinal suffix for a number (1st, 2nd, 3rd, etc.)"""
+    if 10 <= num % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(num % 10, "th")
+    return suffix
+
+
 # Basic route for health check
 @app.route("/")
 def hello():
@@ -101,22 +110,70 @@ def create_game(ack, command, say):
             say("A game must have at least 2 players.")
             return
 
+        # Get ratings before the game
+        pre_game_ratings = {}
+        for rank_group in ranked_player_ids:
+            for player_id in rank_group:
+                pre_game_ratings[player_id] = (
+                    slackelo.get_player_channel_rating(player_id, channel_id)
+                )
+
         # Create the game
         game_id = slackelo.create_game(channel_id, ranked_player_ids)
 
         # Get updated ratings for all players
         player_data = []
-        for rank_group in ranked_player_ids:
-            for player_id in rank_group:
-                rating = slackelo.get_player_channel_rating(
-                    player_id, channel_id
-                )
-                player_data.append((player_id, rating))
+        for player_id, old_rating in pre_game_ratings.items():
+            new_rating = slackelo.get_player_channel_rating(
+                player_id, channel_id
+            )
+            rating_change = new_rating - old_rating
+            player_data.append((player_id, new_rating, rating_change))
 
-        # Format response
-        response = "Game recorded! Current ratings:\n"
-        for player_id, rating in player_data:
-            response += f"• <@{player_id}>: {rating}\n"
+        # Format response with placings and rating changes
+        response = "Game recorded! Results:\n"
+
+        # Determine actual position for each rank group (handling ties correctly)
+        position = 1
+        # Count total number of players to determine last place
+        total_players = sum(len(group) for group in ranked_player_ids)
+        last_position = total_players
+
+        for i, rank_group in enumerate(ranked_player_ids):
+            # Check if this is the last position group (for poop emoji)
+            is_last_position = i == len(ranked_player_ids) - 1
+
+            # Get emoji based on position
+            if is_last_position:  # Only show poop emoji for last place
+                emoji = "💩 "
+            elif position == 1:
+                emoji = "🥇 "
+            elif position == 2:
+                emoji = "🥈 "
+            elif position == 3:
+                emoji = "🥉 "
+            else:
+                emoji = ""  # No emoji for positions 4 through second-to-last
+
+            # Format place text
+            place_text = f"*{position}{get_ordinal_suffix(position)} place*: "
+
+            # Add all players in this rank group
+            for player_id in rank_group:
+                for pid, rating, change in player_data:
+                    if pid == player_id:
+                        # Format rating change as integer
+                        if change > 0:
+                            change_text = f"+{int(change)}"
+                        else:
+                            change_text = f"{int(change)}"
+
+                        # Format as: emoji + place + user - bold rating (italic change in parentheses)
+                        response += f"{emoji}{place_text}<@{player_id}> - *{int(rating)}* _({change_text})_\n"
+                        break
+
+            # Increase position by the number of players in this rank group
+            position += len(rank_group)
 
         say(response)
 
