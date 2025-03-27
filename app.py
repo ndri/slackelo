@@ -38,19 +38,32 @@ def extract_user_ids(text):
 def parse_player_rankings(text):
     """
     Parse player rankings with support for ties.
-    Format: @player1 @player2=@player3 @player4
+    Format:
+    - @player1 @player2=@player3 @player4 (original format)
+    - @player1 @player2 = @player3 @player4 (spaces around equals)
+    - @player1 @player2= @player3 @player4 (space after equals)
+    - @player1 @player2 =@player3 @player4 (space before equals)
+    - @player1 @player2 = @player3 = @player4 (multi-way ties with spaces)
+
     Returns a list of lists, where each inner list contains players tied at that position.
     """
+    # First, normalize by replacing spaces around equals signs
+    # This captures ' = ', ' =', and '= ' patterns
+    normalized_text = re.sub(r"\s*=\s*", "=", text)
+
+    # Now split by spaces to get individual entries
+    parts = normalized_text.split()
+
     ranked_players = []
-    parts = text.split()
 
     for part in parts:
         if "=" in part:
             # Handle tied players
             tied_players = []
             for tied_part in part.split("="):
-                user_ids = extract_user_ids(tied_part)
-                tied_players.extend(user_ids)
+                if tied_part:  # Skip empty strings that might result from split
+                    user_ids = extract_user_ids(tied_part)
+                    tied_players.extend(user_ids)
             if tied_players:
                 ranked_players.append(tied_players)
         else:
