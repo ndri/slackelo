@@ -64,10 +64,29 @@ class Slackelo:
 
         return channel_player[0]
 
-    def create_game(self, channel_id: str, player_ids: List[str]):
-        """Create a new game with players in a specific channel."""
-        if len(player_ids) < 2:
+    def create_game(self, channel_id: str, ranked_player_ids: List[List[str]]):
+        """
+        Create a new game with players in a specific channel.
+
+        Args:
+            channel_id: Channel ID where the game took place
+            ranked_player_ids: List of lists of player IDs, where each inner list
+                               represents players that tied at that position.
+                               For example: [["player1"], ["player2", "player3"], ["player4"]]
+                               means player1 won, player2 and player3 tied for second,
+                               and player4 came in third.
+        """
+        # Flatten the list to count total players
+        flat_player_ids = [
+            player for rank in ranked_player_ids for player in rank
+        ]
+
+        if len(flat_player_ids) < 2:
             raise Exception("A game must have at least 2 players")
+
+        # Check for duplicate players
+        if len(flat_player_ids) != len(set(flat_player_ids)):
+            raise Exception("A player cannot be in multiple positions")
 
         insert_output = self.db.execute_non_query(
             "INSERT INTO games (channel_id, timestamp) VALUES (?, ?)",
@@ -77,16 +96,29 @@ class Slackelo:
         game_id = insert_output["lastrowid"]
 
         channel_players = []
+        player_positions = {}
+        position = 1
 
-        for player_id in player_ids:
+        # Create a map of player_id to position (accounting for ties)
+        for rank_group in ranked_player_ids:
+            for player_id in rank_group:
+                player_positions[player_id] = position
+            position += len(rank_group)
+
+        # Get all channel players
+        for player_id in flat_player_ids:
             channel_player = self.get_or_create_channel_player(
                 player_id, channel_id
             )
             channel_players.append(channel_player)
 
         old_ratings = [player["rating"] for player in channel_players]
-        new_ratings = calculate_group_elo(old_ratings)
+        new_ratings = calculate_group_elo_with_draws(
+            old_ratings,
+            [player_positions[player["user_id"]] for player in channel_players],
+        )
 
+        # Update ratings for each player
         for i, player in enumerate(channel_players):
             self.db.execute_non_query(
                 "INSERT INTO player_games "
@@ -97,7 +129,7 @@ class Slackelo:
                     game_id,
                     old_ratings[i],
                     new_ratings[i],
-                    i + 1,
+                    player_positions[player["user_id"]],
                 ),
             )
             self.db.execute_non_query(
@@ -159,48 +191,78 @@ def calculate_elo_draw(player1_elo: int, player2_elo: int, k_factor: int = 32):
     Returns:
         Tuple of the change in ELO for player 1 and player 2
     """
-    expected_draw = 1 / (1 + 10 ** ((player2_elo - player1_elo) / 400))
+    expected_p1_score = 1 / (1 + 10 ** ((player2_elo - player1_elo) / 400))
+    expected_p2_score = 1 / (1 + 10 ** ((player1_elo - player2_elo) / 400))
 
-    new_player1_elo = player1_elo + round(k_factor * (0.5 - expected_draw))
-    new_player2_elo = player2_elo + round(k_factor * (0.5 - expected_draw))
+    new_player1_elo = player1_elo + round(k_factor * (0.5 - expected_p1_score))
+    new_player2_elo = player2_elo + round(k_factor * (0.5 - expected_p2_score))
 
     return new_player1_elo, new_player2_elo
 
 
-def calculate_group_elo(player_elo: List[int], k_factor: int = 32):
+def calculate_group_elo_with_draws(
+    player_elos: List[int], player_positions: List[int], k_factor: int = 32
+):
     """
-    Calculate the change in ELO for a group of players.
-    Player 1 wins against player 2, 3 and so on.
-    Player 2 loses against player 1, but wins against player 3, 4 and so on.
+    Calculate the change in ELO for a group of players with support for draws.
 
     Args:
-        player_elo: List of ELO ratings for the players
+        player_elos: List of ELO ratings for the players
+        player_positions: List of positions for each player (same position means draw)
         k_factor: K-factor for ELO calculation
 
     Returns:
         List of the new ELO ratings for the players
     """
-    new_elos = player_elo.copy()
+    new_elos = player_elos.copy()
 
     # Track ELO changes separately, apply them all at once
-    elo_changes = [0] * len(player_elo)
+    elo_changes = [0] * len(player_elos)
 
-    for i, player_i_elo in enumerate(player_elo):
-        for j, player_j_elo in enumerate(player_elo):
+    for i, (elo_i, pos_i) in enumerate(zip(player_elos, player_positions)):
+        for j, (elo_j, pos_j) in enumerate(zip(player_elos, player_positions)):
             if i == j:
                 continue
 
-            # Player with lower index beats player with higher index
-            if i < j:
-                # Calculate ELO change for winner and loser
-                winner_change, loser_change = calculate_elo_win(
-                    player_i_elo, player_j_elo, k_factor
+            # Handle draws
+            if pos_i == pos_j:
+                # Calculate ELO changes for a draw
+                p1_new, p2_new = calculate_elo_draw(elo_i, elo_j, k_factor)
+                # Divide by number of comparisons to avoid over-adjusting
+                elo_changes[i] += (p1_new - elo_i) / (len(player_elos) - 1)
+                elo_changes[j] += (p2_new - elo_j) / (len(player_elos) - 1)
+
+            # Player i beat player j
+            elif pos_i < pos_j:
+                # Calculate ELO changes for win/loss
+                winner_new, loser_new = calculate_elo_win(
+                    elo_i, elo_j, k_factor
                 )
-                elo_changes[i] += winner_change - player_i_elo
-                elo_changes[j] += loser_change - player_j_elo
+                # Divide by number of comparisons to avoid over-adjusting
+                elo_changes[i] += (winner_new - elo_i) / (len(player_elos) - 1)
+                elo_changes[j] += (loser_new - elo_j) / (len(player_elos) - 1)
 
     # Apply all changes at once
     for i, change in enumerate(elo_changes):
-        new_elos[i] += change
+        new_elos[i] += round(change)
 
     return new_elos
+
+
+def calculate_group_elo(player_elos: List[int], k_factor: int = 32):
+    """
+    Legacy function for backwards compatibility.
+    Calculate the change in ELO for a group of players without draws.
+    Player 1 wins against player 2, 3 and so on.
+    Player 2 loses against player 1, but wins against player 3, 4 and so on.
+
+    Args:
+        player_elos: List of ELO ratings for the players
+        k_factor: K-factor for ELO calculation
+
+    Returns:
+        List of the new ELO ratings for the players
+    """
+    # Convert to positions format and use new function
+    positions = list(range(1, len(player_elos) + 1))
+    return calculate_group_elo_with_draws(player_elos, positions, k_factor)
