@@ -139,6 +139,54 @@ class Slackelo:
 
         return game_id
 
+    def undo_last_game(self, channel_id: str):
+        """
+        Undo the last game in a specific channel.
+
+        Args:
+            channel_id: Channel ID where the game took place
+        """
+        last_game = self.db.execute_query(
+            """
+            SELECT g.id, g.timestamp
+            FROM games g
+            WHERE g.channel_id = ?
+            ORDER BY g.timestamp DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if not last_game:
+            raise Exception("No games to undo")
+
+        game_id = last_game[0]["id"]
+        game_timestamp = last_game[0]["timestamp"]
+
+        # Get all players in the game
+        player_games = self.db.execute_query(
+            "SELECT * FROM player_games WHERE game_id = ?", (game_id,)
+        )
+
+        # Update ratings for each player
+        for player_game in player_games:
+            self.db.execute_non_query(
+                "UPDATE channel_players SET rating = ? WHERE user_id = ? AND channel_id = ?",
+                (
+                    player_game["rating_before"],
+                    player_game["user_id"],
+                    channel_id,
+                ),
+            )
+
+        # Delete the game and player_games
+        self.db.execute_non_query("DELETE FROM games WHERE id = ?", (game_id,))
+        self.db.execute_non_query(
+            "DELETE FROM player_games WHERE game_id = ?", (game_id,)
+        )
+
+        return game_timestamp
+
     def get_player_channel_rating(self, user_id: str, channel_id: str):
         """Get a player's rating for a specific channel."""
         channel_player = self.get_or_create_channel_player(user_id, channel_id)
