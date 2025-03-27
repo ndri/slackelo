@@ -90,16 +90,6 @@ def hello():
     return "Slackelo is running!"
 
 
-# Greeting message
-@bolt_app.message("hello slackelo")
-def greetings(payload: dict, say: Say):
-    """Respond to 'hello slackelo' messages"""
-    user = payload.get("user")
-    say(
-        f"Hi <@{user}>! I'm Slackelo, your friendly Elo rating bot. Use `/help` to see available commands."
-    )
-
-
 # Game creation command
 @bolt_app.command("/game")
 def create_game(ack, command, say):
