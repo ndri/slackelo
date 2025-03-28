@@ -307,6 +307,58 @@ def show_rating(ack, command, say):
         say(f"Error fetching rating: {str(e)}")
 
 
+@bolt_app.command("/history")
+def show_history(ack, command, say):
+    """Show a player's game history or your own if no player is specified"""
+    ack()
+
+    channel_id = command["channel_id"]
+    text = command["text"].strip()
+    user_id = command["user_id"]
+
+    try:
+        mentioned_users = extract_user_ids(text)
+
+        if mentioned_users:
+            user_id = mentioned_users[0]
+            player_name = f"<@{user_id}>"
+
+        player_name = f"<@{user_id}>"
+
+        history = slackelo.get_player_game_history(user_id, channel_id)
+
+        if not history:
+            say(f"No game history found for {player_name} in this channel.")
+            return
+
+        response = f"*Game history for {player_name}:*\n"
+
+        for game in history:
+            # Format the timestamp
+            game_time = datetime.utcfromtimestamp(game["timestamp"]).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+
+            # Format the position with ordinal suffix
+            position = game["position"]
+            suffix = get_ordinal_suffix(position)
+
+            # Calculate and format rating change
+            rating_change = game["rating_after"] - game["rating_before"]
+            if rating_change > 0:
+                change_text = f"+{int(rating_change)}"
+            else:
+                change_text = f"{int(rating_change)}"
+
+            response += f"• {game_time} UTC: {position}{suffix} place - *{int(game['rating_before'])} → {int(game['rating_after'])}* _({change_text})_\n"
+
+        say(response)
+
+    except Exception as e:
+        logger.error(f"Error in show_history: {str(e)}")
+        say(f"Error fetching history: {str(e)}")
+
+
 @bolt_app.command("/help")
 def help_command(ack, command, say):
     """Show available commands and usage"""
@@ -326,7 +378,7 @@ def help_command(ack, command, say):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "• `/game @player1 @player2 @player3` - Record a game with players in order of ranking (winner first)\n• `/game @player1=@player2 @player3` - Record a game with ties (player1 and player2 tied for first)\n• `/simulate @player1 @player2 @player3` - Simulate a game to see rating changes without saving\n• `/leaderboard [limit]` - Show channel leaderboard (optional limit parameter)\n• `/rating [@player]` - Show your rating or another player's rating\n• `/undo` - Undo the last game in the channel\n• `/help` - Show this help message",
+                    "text": "• `/game @player1 @player2 @player3` - Record a game with players in order of ranking (winner first)\n• `/game @player1=@player2 @player3` - Record a game with ties (player1 and player2 tied for first)\n• `/simulate @player1 @player2 @player3` - Simulate a game to see rating changes without saving\n• `/leaderboard [limit]` - Show channel leaderboard (optional limit parameter)\n• `/rating [@player]` - Show your rating or another player's rating\n• `/history [@player]` - View your game history or another player's history\n• `/undo` - Undo the last game in the channel\n• `/help` - Show this help message",
                 },
             },
             {
