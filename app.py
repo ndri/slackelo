@@ -2,31 +2,42 @@
 Vibecoded Slack bot for tracking Elo ratings in games with more than 2 players.
 """
 
-from datetime import datetime
 import os
 import re
-from flask import Flask, request, redirect
-from slack_sdk import WebClient
-from slack_bolt import App, Say
+import logging
+from datetime import datetime
+from flask import Flask, request, jsonify
+from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
+from slack_bolt.oauth.oauth_flow import OAuthFlow
 from dotenv import load_dotenv
 from slackelo import Slackelo, calculate_group_elo_with_draws
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
-# Initialize Flask and load environment variables
 app = Flask(__name__)
 
-# Set up Slack client and Bolt app
-client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
-bolt_app = App(
-    token=os.environ.get("SLACK_BOT_TOKEN"),
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-)
-handler = SlackRequestHandler(bolt_app)
+db_path = os.environ.get("DB_PATH", "slackelo.db")
+slackelo = Slackelo(db_path, "init.sql")
 
-# Initialize Slackelo with database path
-slackelo = Slackelo(os.environ.get("DB_PATH", "slackelo.db"), "init.sql")
+bolt_app = App(
+    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+    oauth_flow=OAuthFlow.sqlite3(
+        database=db_path,
+        client_id=os.environ.get("SLACK_CLIENT_ID"),
+        client_secret=os.environ.get("SLACK_RANDOM_STRING"),
+        scopes=["channels:history", "chat:write", "commands"],
+        redirect_uri="https://andri.io/slackelo/oauth/redirect",
+        install_path="/install",
+        redirect_uri_path="/oauth/redirect",
+        success_url="/slackelo/success",
+    ),
+)
+
+handler = SlackRequestHandler(bolt_app)
 
 
 # Helper function to extract user IDs from mentions
@@ -205,18 +216,11 @@ def process_game_rankings(text, channel_id, is_simulation=False):
     return response
 
 
-# Basic route for health check
-@app.route("/")
-def hello():
-    return """<a href="https://slack.com/oauth/v2/authorize?client_id=8664928721587.8673368141777&scope=channels:history,chat:write,commands&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>"""
-
-
 # Game creation command
 @bolt_app.command("/game")
 def create_game(ack, command, say):
     """Create a new game with players and their rankings"""
     ack()
-
     channel_id = command["channel_id"]
     text = command["text"].strip()
 
@@ -230,6 +234,7 @@ def create_game(ack, command, say):
         response = process_game_rankings(text, channel_id, is_simulation=False)
         say(response)
     except Exception as e:
+        logger.error(f"Error in create_game: {str(e)}")
         say(f"Error creating game: {str(e)}")
 
 
@@ -252,6 +257,7 @@ def simulate_game(ack, command, say):
         response = process_game_rankings(text, channel_id, is_simulation=True)
         say(response)
     except Exception as e:
+        logger.error(f"Error in simulate_game: {str(e)}")
         say(f"Error simulating game: {str(e)}")
 
 
@@ -285,6 +291,7 @@ def show_leaderboard(ack, command, say):
         say(response)
 
     except Exception as e:
+        logger.error(f"Error in show_leaderboard: {str(e)}")
         say(f"Error fetching leaderboard: {str(e)}")
 
 
@@ -309,6 +316,7 @@ def undo_last_game(ack, command, say):
         )
 
     except Exception as e:
+        logger.error(f"Error in undo_last_game: {str(e)}")
         say(f"Error undoing game: {str(e)}")
 
 
@@ -333,12 +341,13 @@ def show_rating(ack, command, say):
         say(f"<@{user_id}>'s current rating in this channel is {rating}.")
 
     except Exception as e:
+        logger.error(f"Error in show_rating: {str(e)}")
         say(f"Error fetching rating: {str(e)}")
 
 
 # Help command
 @bolt_app.command("/help")
-def help_command(ack, say):
+def help_command(ack, command, say):
     """Show available commands and usage"""
     ack()
 
@@ -372,59 +381,207 @@ def help_command(ack, say):
     say(blocks=help_text["blocks"])
 
 
-# Handle Slack events
+# Basic route for health check
+@app.route("/")
+def hello():
+    # Get the absolute URL for the installation
+    base_url = request.url_root.rstrip("/")
+    install_url = f"{base_url}/install"
+
+    return f"""
+    <html>
+    <head>
+        <title>Slackelo - Elo Rating System for Slack</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+            h1 {{ color: #4A154B; }}
+            .container {{ max-width: 800px; margin: 0 auto; }}
+            .btn {{ display: inline-block; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Slackelo</h1>
+            <p>An Elo rating system for tracking competitive games in Slack channels.</p>
+            <div class="btn">
+                <a href="{install_url}"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+
+# Route for Slack events with better error handling
 @app.route("/events", methods=["POST"])
 def slack_events():
-    """Route where Slack will post requests"""
-    return handler.handle(request)
+    # Add detailed logging of the request
+    logger.debug(
+        f"Received request: content-type={request.headers.get('Content-Type')}"
+    )
+    try:
+        # Log raw request data for debugging
+        request_data = request.get_data(as_text=True)
+        logger.debug(f"Request body: {request_data}")
+        logger.debug(f"Request form: {request.form}")
+        logger.debug(f"Request args: {request.args}")
+
+        # Process the request through the Slack handler
+        return handler.handle(request)
+    except Exception as e:
+        logger.error(f"Error handling Slack event: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
-@app.route("/oauth/redirect", methods=["GET"])
-def oauth_redirect():
-    # Get the authorization code from the request
-    code = request.args.get("code")
-
-    if not code:
-        return "Error: No code provided", 400
+# Dedicated route for slash commands
+@app.route("/slack/commands", methods=["POST"])
+def slack_commands():
+    logger.debug(
+        f"Received slash command: content-type={request.headers.get('Content-Type')}"
+    )
+    logger.debug(f"Form data: {request.form}")
 
     try:
-        # Exchange the code for an access token
-        response = client.oauth_v2_access(
-            client_id=os.environ.get("SLACK_CLIENT_ID"),
-            client_secret=os.environ.get("SLACK_RANDOM_STRING"),
-            code=code,
-            redirect_uri=os.environ.get("SLACK_REDIRECT_URI"),
-        )
-
-        # Store the tokens (you may want to save these in your database)
-        # response will contain access_token, team information, etc.
-
-        # Redirect back to Slack
-        return redirect("https://slack.com/"), 302
-
+        # Slack sends slash commands as form data
+        return handler.handle(request)
     except Exception as e:
-        return f"Error during OAuth: {str(e)}", 400
+        logger.error(f"Error handling slash command: {str(e)}")
+        return (
+            jsonify({"text": f"Error processing command: {str(e)}"}),
+            200,
+        )  # Return 200 so Slack shows the error
+
+
+# Handle OAuth installation and redirect
+@app.route("/oauth/redirect", methods=["GET"])
+def oauth_redirect():
+    logger.debug(f"Received OAuth redirect with args: {str(request.args)}")
+    logger.debug(f"Full request URL: {request.url}")
+    try:
+        # Get the state from the request
+        state = request.args.get("state", "")
+        logger.debug(f"State parameter: {state}")
+
+        # Process the OAuth callback
+        return handler.handle(request)
+    except Exception as e:
+        logger.error(f"Error in OAuth redirect: {str(e)}")
+        return (
+            f"""
+        <html>
+        <head>
+            <title>Slackelo - Installation Error</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+                h1 {{ color: #E01E5A; }}
+                .container {{ max-width: 800px; margin: 0 auto; text-align: center; }}
+                .error {{ color: #E01E5A; font-weight: bold; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Installation Error</h1>
+                <p class="error">{str(e)}</p>
+                <p>Please try again from the <a href="/">homepage</a> or contact the app owner.</p>
+            </div>
+        </body>
+        </html>
+        """,
+            500,
+        )
 
 
 @app.route("/install", methods=["GET"])
 def install():
-    # Create a URL for installing to a workspace
-    scope = "channels:history,chat:write,commands"  # Add required scopes
-    client_id = os.environ.get("SLACK_CLIENT_ID")
-    redirect_uri = os.environ.get("SLACK_REDIRECT_URI")
+    try:
+        # Get the base URL for the success redirect
+        base_url = request.url_root.rstrip("/")
+        success_url = f"{base_url}/success"
 
-    # Construct the authorization URL
-    auth_url = f"https://slack.com/oauth/v2/authorize?client_id={client_id}&scope={scope}&redirect_uri={redirect_uri}"
+        # Configure the OAuth settings for this specific request
+        bolt_app.oauth_flow.settings.success_url = success_url
 
-    # Redirect to Slack's authorization page
-    return redirect(auth_url)
+        # Process the installation request without manually handling state
+        return handler.handle(request)
+    except Exception as e:
+        logger.error(f"Error in install: {str(e)}")
+        return (
+            f"""
+        <html>
+        <head>
+            <title>Slackelo - Installation Error</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+                h1 {{ color: #E01E5A; }}
+                .container {{ max-width: 800px; margin: 0 auto; text-align: center; }}
+                .error {{ color: #E01E5A; font-weight: bold; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Installation Error</h1>
+                <p class="error">{str(e)}</p>
+                <p>Please try again from the <a href="/">homepage</a> or contact the app owner.</p>
+            </div>
+        </body>
+        </html>
+        """,
+            500,
+        )
 
 
 @app.route("/success", methods=["GET"])
 def success():
-    return "Installation successful! You can close this tab."
+    return """
+    <html>
+    <head>
+        <title>Slackelo - Installation Successful</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+            h1 { color: #2EB67D; }
+            .container { max-width: 800px; margin: 0 auto; text-align: center; }
+            .success { color: #2EB67D; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Installation Successful!</h1>
+            <p class="success">Slackelo has been successfully installed to your workspace.</p>
+            <p>You can now use the following slash commands in your Slack channels:</p>
+            <ul style="display: inline-block; text-align: left;">
+                <li><code>/game @player1 @player2 @player3</code> - Record a game with players in order of ranking</li>
+                <li><code>/simulate @player1 @player2 @player3</code> - Simulate a game without saving</li>
+                <li><code>/leaderboard</code> - View channel leaderboard</li>
+                <li><code>/rating</code> - Check your rating</li>
+                <li><code>/help</code> - View all available commands</li>
+            </ul>
+            <p>You can close this tab and return to Slack.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+
+# Add a middleware to handle content type issues
+@app.before_request
+def handle_content_type():
+    # Only apply to Slack command endpoints
+    if request.path.startswith("/slack/commands"):
+        logger.debug(
+            f"Handling content type for Slack command: content-type={request.headers.get('Content-Type')}"
+        )
+        # Force Flask to treat it as form data
+        if hasattr(request, "_cached_data"):
+            delattr(request, "_cached_data")
 
 
 # Run the Flask app
 if __name__ == "__main__":
+    logger.info("Starting Slackelo app...")
+    logger.info(f"Database path: {db_path}")
+
+    logger.info("Available routes:")
+    for rule in app.url_map.iter_rules():
+        logger.info(f"  {rule.endpoint}: {rule}")
+
     app.run(host="0.0.0.0", port=8080, debug=True)
