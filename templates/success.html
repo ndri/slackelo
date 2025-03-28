@@ -1,0 +1,35 @@
+{% extends "base.html" %} {% block title %}Slackelo - Installation Successful{% endblock
+%} {% block content %}
+<h1>Installation Successful!</h1>
+<p class="success">Slackelo has been successfully installed to your workspace.</p>
+<p>
+  <strong>Important:</strong> Remember to invite the bot to your channel by typing
+  <code>/invite @slackelo</code> in each channel where you want to use it.
+</p>
+<p>You can now use the following slash commands in your Slack channels:</p>
+<ul style="display: inline-block; text-align: left">
+  <li>
+    <code>/game @player1 @player2 @player3</code> - Record a game with players in order
+    of ranking (winner first)
+  </li>
+  <li>
+    <code>/game @player1=@player2 @player3</code> - Record a game with ties (player1 and
+    player2 tied for first)
+  </li>
+  <li>
+    <code>/game @player1 @player2=@player3 @player4</code> - Record complex rankings
+    (player1 first, player2 and player3 tied for second, player4 fourth)
+  </li>
+  <li>
+    <code>/simulate @player1 @player2 @player3</code> - Simulate a game without saving
+  </li>
+  <li>
+    <code>/leaderboard [limit]</code> - View channel leaderboard (optional limit
+    parameter)
+  </li>
+  <li><code>/rating [@player]</code> - Check your rating or another player's rating</li>
+  <li><code>/undo</code> - Undo the last game in the channel</li>
+  <li><code>/help</code> - View all available commands</li>
+</ul>
+<p>You can close this tab and return to Slack.</p>
+{% endblock %}

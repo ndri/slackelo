@@ -6,7 +6,7 @@ import os
 import re
 import logging
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from slack_bolt.oauth.oauth_flow import OAuthFlow
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates", static_folder="static")
 
 db_path = os.environ.get("DB_PATH", "slackelo.db")
 slackelo = Slackelo(db_path, "init.sql")
@@ -346,29 +346,7 @@ def help_command(ack, command, say):
 def hello():
     base_url = request.url_root.rstrip("/")
     install_url = f"{base_url}/install"
-
-    return f"""
-    <html>
-    <head>
-        <title>Slackelo - Elo Rating System for Slack</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
-            h1 {{ color: #4A154B; }}
-            .container {{ max-width: 800px; margin: 0 auto; }}
-            .btn {{ display: inline-block; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Slackelo</h1>
-            <p>An Elo rating system for tracking competitive games in Slack channels.</p>
-            <div class="btn">
-                <a href="{install_url}"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
+    return render_template("index.html", install_url=install_url)
 
 
 @app.route("/events", methods=["POST"])
@@ -398,29 +376,7 @@ def oauth_redirect():
         return handler.handle(request)
     except Exception as e:
         logger.error(f"Error in OAuth redirect: {str(e)}")
-        return (
-            f"""
-        <html>
-        <head>
-            <title>Slackelo - Installation Error</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
-                h1 {{ color: #E01E5A; }}
-                .container {{ max-width: 800px; margin: 0 auto; text-align: center; }}
-                .error {{ color: #E01E5A; font-weight: bold; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Installation Error</h1>
-                <p class="error">{str(e)}</p>
-                <p>Please try again from the <a href="/">homepage</a> or contact the app owner.</p>
-            </div>
-        </body>
-        </html>
-        """,
-            500,
-        )
+        return render_template("error.html", error=str(e)), 500
 
 
 @app.route("/install", methods=["GET"])
@@ -432,61 +388,12 @@ def install():
         return handler.handle(request)
     except Exception as e:
         logger.error(f"Error in install: {str(e)}")
-        return (
-            f"""
-        <html>
-        <head>
-            <title>Slackelo - Installation Error</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
-                h1 {{ color: #E01E5A; }}
-                .container {{ max-width: 800px; margin: 0 auto; text-align: center; }}
-                .error {{ color: #E01E5A; font-weight: bold; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Installation Error</h1>
-                <p class="error">{str(e)}</p>
-                <p>Please try again from the <a href="/">homepage</a> or contact the app owner.</p>
-            </div>
-        </body>
-        </html>
-        """,
-            500,
-        )
+        return render_template("error.html", error=str(e)), 500
 
 
 @app.route("/success", methods=["GET"])
 def success():
-    return """
-    <html>
-    <head>
-        <title>Slackelo - Installation Successful</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
-            h1 { color: #2EB67D; }
-            .container { max-width: 800px; margin: 0 auto; text-align: center; }
-            .success { color: #2EB67D; font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Installation Successful!</h1>
-            <p class="success">Slackelo has been successfully installed to your workspace.</p>
-            <p>You can now use the following slash commands in your Slack channels:</p>
-            <ul style="display: inline-block; text-align: left;">
-                <li><code>/game @player1 @player2 @player3</code> - Record a game with players in order of ranking</li>
-                <li><code>/simulate @player1 @player2 @player3</code> - Simulate a game without saving</li>
-                <li><code>/leaderboard</code> - View channel leaderboard</li>
-                <li><code>/rating</code> - Check your rating</li>
-                <li><code>/help</code> - View all available commands</li>
-            </ul>
-            <p>You can close this tab and return to Slack.</p>
-        </div>
-    </body>
-    </html>
-    """
+    return render_template("success.html")
 
 
 @app.before_request

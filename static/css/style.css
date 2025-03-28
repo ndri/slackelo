@@ -1,0 +1,42 @@
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 40px;
+  line-height: 1.6;
+}
+
+h1 {
+  color: #4a154b;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.btn {
+  display: inline-block;
+  margin-top: 20px;
+}
+
+.success {
+  color: #2eb67d;
+  font-weight: bold;
+}
+
+.error {
+  color: #e01e5a;
+  font-weight: bold;
+}
+
+code {
+  background-color: #f4f4f4;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+ul {
+  text-align: left;
+  display: inline-block;
+  margin: 20px auto;
+}
