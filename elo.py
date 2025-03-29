@@ -2,19 +2,22 @@
 Elo rating system functions.
 """
 
-from typing import List
+from typing import List, Tuple
 
 
-def calculate_elo_win(winner_elo: int, loser_elo: int, k_factor: int = 32):
+def calculate_elo_win(
+    winner_elo: int, loser_elo: int, k_factor: int = 32
+) -> Tuple[int, int]:
     """
     Calculate the change in Elo for the winner and loser of a game.
 
     Args:
         winner_elo: Elo rating of the winner
         loser_elo: Elo rating of the loser
+        k_factor: K-factor for Elo calculation
 
     Returns:
-        Tuple of the change in Elo for the winner and loser
+        Tuple of the new Elo ratings for the winner and loser
     """
     expected_win = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
     expected_lose = 1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))
@@ -25,13 +28,16 @@ def calculate_elo_win(winner_elo: int, loser_elo: int, k_factor: int = 32):
     return new_winner_elo, new_loser_elo
 
 
-def calculate_elo_draw(player1_elo: int, player2_elo: int, k_factor: int = 32):
+def calculate_elo_draw(
+    player1_elo: int, player2_elo: int, k_factor: int = 32
+) -> Tuple[int, int]:
     """
     Calculate the change in Elo for a draw between two players.
 
     Args:
         player1_elo: Elo rating of player 1
         player2_elo: Elo rating of player 2
+        k_factor: K-factor for Elo calculation
 
     Returns:
         Tuple of the change in Elo for player 1 and player 2
@@ -47,7 +53,7 @@ def calculate_elo_draw(player1_elo: int, player2_elo: int, k_factor: int = 32):
 
 def calculate_group_elo_with_draws(
     player_elos: List[int], player_positions: List[int], k_factor: int = 32
-):
+) -> List[int]:
     """
     Calculate the change in Elo for a group of players with support for draws.
 
@@ -94,7 +100,9 @@ def calculate_group_elo_with_draws(
     return new_elos
 
 
-def calculate_group_elo(player_elos: List[int], k_factor: int = 32):
+def calculate_group_elo(
+    player_elos: List[int], k_factor: int = 32
+) -> List[int]:
     """
     Legacy function for backwards compatibility.
     Calculate the change in Elo for a group of players without draws.
@@ -109,5 +117,5 @@ def calculate_group_elo(player_elos: List[int], k_factor: int = 32):
         List of the new Elo ratings for the players
     """
     # Convert to positions format and use new function
-    positions = list(range(1, len(player_elos) + 1))
+    positions: List[int] = list(range(1, len(player_elos) + 1))
     return calculate_group_elo_with_draws(player_elos, positions, k_factor)

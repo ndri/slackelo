@@ -2,20 +2,24 @@
 API for interacting with the Slackelo database.
 """
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any, Optional, cast
 import time
 from sqlite_connector import SQLiteConnector
 from elo import calculate_group_elo_with_draws
 
 
 class Slackelo:
-    def __init__(
-        self, db_path: str, init_sql_file: str = None, k_factor: int = 32
-    ):
-        self.db = SQLiteConnector(db_path, init_sql_file)
-        self.k_factor = k_factor
 
-    def get_or_create_player(self, user_id: str):
+    def __init__(
+        self,
+        db_path: str,
+        init_sql_file: Optional[str] = None,
+        k_factor: Optional[int] = 32,
+    ):
+        self.db: SQLiteConnector = SQLiteConnector(db_path, init_sql_file)
+        self.k_factor: int = k_factor
+
+    def get_or_create_player(self, user_id: str) -> Dict[str, Any]:
         """Get or create a player in the players table."""
         player = self.db.execute_query(
             "SELECT * FROM players WHERE user_id = ?", (user_id,)
@@ -32,7 +36,7 @@ class Slackelo:
 
         return player[0]
 
-    def get_or_create_channel(self, channel_id: str):
+    def get_or_create_channel(self, channel_id: str) -> Dict[str, Any]:
         """Get or create a channel in the channels table."""
         channel = self.db.execute_query(
             "SELECT * FROM channels WHERE channel_id = ?", (channel_id,)
@@ -49,7 +53,9 @@ class Slackelo:
 
         return channel[0]
 
-    def get_or_create_channel_player(self, user_id: str, channel_id: str):
+    def get_or_create_channel_player(
+        self, user_id: str, channel_id: str
+    ) -> Dict[str, Any]:
         """Get or create a player's rating for a specific channel."""
         # Ensure player and channel exist
         self.get_or_create_player(user_id)
@@ -72,7 +78,9 @@ class Slackelo:
 
         return channel_player[0]
 
-    def create_game(self, channel_id: str, ranked_player_ids: List[List[str]]):
+    def create_game(
+        self, channel_id: str, ranked_player_ids: List[List[str]]
+    ) -> int:
         """
         Create a new game with players in a specific channel.
 
@@ -83,6 +91,9 @@ class Slackelo:
                                For example: [["player1"], ["player2", "player3"], ["player4"]]
                                means player1 won, player2 and player3 tied for second,
                                and player4 came in third.
+
+        Returns:
+            The ID of the newly created game
         """
         # Flatten the list to count total players
         flat_player_ids = [
@@ -120,7 +131,7 @@ class Slackelo:
             )
             channel_players.append(channel_player)
 
-        old_ratings = [player["rating"] for player in channel_players]
+        old_ratings = [int(player["rating"]) for player in channel_players]
         new_ratings = calculate_group_elo_with_draws(
             old_ratings,
             [player_positions[player["user_id"]] for player in channel_players],
@@ -210,12 +221,15 @@ class Slackelo:
 
         return pre_game_ratings, post_game_ratings, player_positions
 
-    def undo_last_game(self, channel_id: str):
+    def undo_last_game(self, channel_id: str) -> int:
         """
         Undo the last game in a specific channel.
 
         Args:
             channel_id: Channel ID where the game took place
+
+        Returns:
+            The timestamp of the undone game
         """
         last_game = self.db.execute_query(
             """
@@ -258,7 +272,7 @@ class Slackelo:
 
         return game_timestamp
 
-    def get_player_channel_rating(self, user_id: str, channel_id: str):
+    def get_player_channel_rating(self, user_id: str, channel_id: str) -> int:
         """Get a player's rating for a specific channel."""
         channel_player = self.get_or_create_channel_player(user_id, channel_id)
         return channel_player["rating"]
@@ -288,7 +302,7 @@ class Slackelo:
 
     def get_player_game_history(
         self, user_id: str, channel_id: str, limit: int = 10
-    ):
+    ) -> List[Dict[str, Any]]:
         """
         Get the game history for a specific player in a specific channel.
 
@@ -300,7 +314,7 @@ class Slackelo:
         Returns:
             List of dictionaries containing game history
         """
-        history = self.db.execute_query(
+        history: List[Dict[str, Any]] = self.db.execute_query(
             """
             SELECT
                 pg.game_id,
@@ -320,7 +334,7 @@ class Slackelo:
 
         return history
 
-    def get_player_game_count(self, user_id: str, channel_id: str):
+    def get_player_game_count(self, user_id: str, channel_id: str) -> int:
         """
         Get the total number of games a player has participated in within a channel.
 
@@ -331,7 +345,7 @@ class Slackelo:
         Returns:
             Integer count of games
         """
-        result = self.db.execute_query(
+        result: List[Dict[str, Any]] = self.db.execute_query(
             """
             SELECT
                 COUNT(*) as game_count
@@ -344,5 +358,5 @@ class Slackelo:
         )
 
         if result and "game_count" in result[0]:
-            return result[0]["game_count"]
+            return int(result[0]["game_count"])
         return 0

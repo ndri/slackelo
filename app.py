@@ -5,6 +5,7 @@ Vibecoded Slack bot for tracking Elo ratings in games with 2 or more players.
 import os
 import logging
 from datetime import datetime
+from typing import Dict, Any, List, Tuple
 from flask import Flask, request, jsonify, render_template
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
@@ -24,8 +25,8 @@ load_dotenv()
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
-db_path = os.environ.get("DB_PATH", "slackelo.db")
-k_factor = int(os.environ.get("K_FACTOR", 32))
+db_path: str = os.environ.get("DB_PATH", "slackelo.db")
+k_factor: int = int(os.environ.get("K_FACTOR", 32))
 slackelo = Slackelo(db_path, init_sql_file="init.sql", k_factor=k_factor)
 
 bolt_app = App(
@@ -45,7 +46,9 @@ bolt_app = App(
 handler = SlackRequestHandler(bolt_app)
 
 
-def process_game_rankings(text, channel_id, is_simulation=False):
+def process_game_rankings(
+    text: str, channel_id: str, is_simulation: bool = False
+) -> str:
     """
     Process player rankings and calculate rating changes.
 
@@ -134,7 +137,7 @@ def process_game_rankings(text, channel_id, is_simulation=False):
 
 
 @bolt_app.command("/game")
-def create_game(ack, command, say):
+def create_game(ack: callable, command: Dict[str, Any], say: callable):
     """Create a new game with players and their rankings"""
     ack()
     channel_id = command["channel_id"]
@@ -155,7 +158,7 @@ def create_game(ack, command, say):
 
 
 @bolt_app.command("/simulate")
-def simulate_game(ack, command, say):
+def simulate_game(ack: callable, command: Dict[str, Any], say: callable):
     """Simulate a game to see rating changes without saving to the database"""
     ack()
 
@@ -177,7 +180,7 @@ def simulate_game(ack, command, say):
 
 
 @bolt_app.command("/leaderboard")
-def show_leaderboard(ack, command, say):
+def show_leaderboard(ack: callable, command: Dict[str, Any], say: callable):
     """Show the channel leaderboard"""
     ack()
 
@@ -209,7 +212,7 @@ def show_leaderboard(ack, command, say):
 
 
 @bolt_app.command("/undo")
-def undo_last_game(ack, command, say):
+def undo_last_game(ack: callable, command: Dict[str, Any], say: callable):
     """Undo the last game in the channel"""
     ack()
 
@@ -231,7 +234,7 @@ def undo_last_game(ack, command, say):
 
 
 @bolt_app.command("/rating")
-def show_rating(ack, command, say):
+def show_rating(ack: callable, command: Dict[str, Any], say: callable):
     """Show a player's rating or your own if no player is specified"""
     ack()
 
@@ -254,7 +257,7 @@ def show_rating(ack, command, say):
 
 
 @bolt_app.command("/history")
-def show_history(ack, command, say):
+def show_history(ack: callable, command: Dict[str, Any], say: callable):
     """Show a player's game history or your own if no player is specified"""
     ack()
 
@@ -313,7 +316,7 @@ def show_history(ack, command, say):
 
 
 @bolt_app.command("/help")
-def help_command(ack, command, say):
+def help_command(ack: callable, _, say: callable) -> None:
     """Show available commands and usage"""
     ack()
 
