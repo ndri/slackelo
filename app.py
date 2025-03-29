@@ -146,17 +146,17 @@ def process_game_rankings(text, channel_id, is_simulation=False):
         is_last_position = i == len(ranked_player_ids) - 1
 
         if is_last_position:
-            emoji = "💩 "
+            position_emoji = "💩 "
         elif position == 1:
-            emoji = "🥇 "
+            position_emoji = "🥇 "
         elif position == 2:
-            emoji = "🥈 "
+            position_emoji = "🥈 "
         elif position == 3:
-            emoji = "🥉 "
+            position_emoji = "🥉 "
         else:
-            emoji = ""
+            position_emoji = ""
 
-        place_text = f"*{position}{get_ordinal_suffix(position)} place*: "
+        position_text = f"*{position}{get_ordinal_suffix(position)} place*: "
 
         for player_id in rank_group:
             old_rating = pre_game_ratings[player_id]
@@ -168,13 +168,7 @@ def process_game_rankings(text, channel_id, is_simulation=False):
             else:
                 change_text = f"{int(change)}"
 
-            if is_simulation:
-                response += f"{emoji}{place_text}<@{player_id}> - *{int(old_rating)} → {int(new_rating)}* _({change_text})_\n"
-            else:
-                response += f"{emoji}{place_text}<@{player_id}> - *{int(new_rating)}* _({change_text})_\n"
-
-            place_text = ""
-            emoji = ""
+            response += f"{position_emoji}{position_text}<@{player_id}> - *{int(old_rating)} → {int(new_rating)}* _({change_text})_\n"
 
         position += len(rank_group)
 
