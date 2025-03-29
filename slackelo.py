@@ -9,8 +9,11 @@ from elo import calculate_group_elo_with_draws
 
 
 class Slackelo:
-    def __init__(self, db_path: str, init_sql_file: str = None):
+    def __init__(
+        self, db_path: str, init_sql_file: str = None, k_factor: int = 32
+    ):
         self.db = SQLiteConnector(db_path, init_sql_file)
+        self.k_factor = k_factor
 
     def get_or_create_player(self, user_id: str):
         """Get or create a player in the players table."""
@@ -121,7 +124,7 @@ class Slackelo:
         new_ratings = calculate_group_elo_with_draws(
             old_ratings,
             [player_positions[player["user_id"]] for player in channel_players],
-            k_factor=32,
+            k_factor=self.k_factor,
         )
 
         # Update ratings for each player
@@ -197,7 +200,7 @@ class Slackelo:
         ]
 
         new_ratings = calculate_group_elo_with_draws(
-            current_ratings, positions_list, k_factor=32
+            current_ratings, positions_list, k_factor=self.k_factor
         )
 
         # Map new ratings to player IDs

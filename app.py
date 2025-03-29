@@ -21,7 +21,8 @@ load_dotenv()
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 db_path = os.environ.get("DB_PATH", "slackelo.db")
-slackelo = Slackelo(db_path, "init.sql")
+k_factor = int(os.environ.get("K_FACTOR", 32))
+slackelo = Slackelo(db_path, init_sql_file="init.sql", k_factor=k_factor)
 
 bolt_app = App(
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
