@@ -1,5 +1,5 @@
 """
-Vibecoded Slack bot for tracking Elo ratings in games with more than 2 players.
+Vibecoded Slack bot for tracking Elo ratings in games with 2 or more players.
 """
 
 import os
@@ -11,7 +11,8 @@ from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from slack_bolt.oauth.oauth_flow import OAuthFlow
 from dotenv import load_dotenv
-from slackelo import Slackelo, calculate_group_elo_with_draws
+from slackelo import Slackelo
+from elo import calculate_group_elo_with_draws
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
