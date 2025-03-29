@@ -312,6 +312,8 @@ def show_history(ack, command, say):
     """Show a player's game history or your own if no player is specified"""
     ack()
 
+    games_to_show = 10
+
     channel_id = command["channel_id"]
     text = command["text"].strip()
     user_id = command["user_id"]
@@ -322,28 +324,33 @@ def show_history(ack, command, say):
         if mentioned_users:
             user_id = mentioned_users[0]
             player_name = f"<@{user_id}>"
+        else:
+            player_name = f"<@{user_id}>"
 
-        player_name = f"<@{user_id}>"
+        latest_games = slackelo.get_player_game_history(
+            user_id, channel_id, games_to_show
+        )
 
-        history = slackelo.get_player_game_history(user_id, channel_id)
-
-        if not history:
+        if not latest_games:
             say(f"No game history found for {player_name} in this channel.")
             return
 
+        total_games = slackelo.get_player_game_count(user_id, channel_id)
+
         response = f"*Game history for {player_name}:*\n"
 
-        for game in history:
-            # Format the timestamp
+        if total_games > games_to_show:
+            previous_games = total_games - games_to_show
+            response += f"• _+{previous_games} previous games_\n"
+
+        for game in latest_games[::-1]:
             game_time = datetime.utcfromtimestamp(game["timestamp"]).strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
 
-            # Format the position with ordinal suffix
             position = game["position"]
             suffix = get_ordinal_suffix(position)
 
-            # Calculate and format rating change
             rating_change = game["rating_after"] - game["rating_before"]
             if rating_change > 0:
                 change_text = f"+{int(rating_change)}"

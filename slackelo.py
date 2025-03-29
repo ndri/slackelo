@@ -216,7 +216,7 @@ class Slackelo:
         return leaderboard
 
     def get_player_game_history(
-        self, user_id: str, channel_id: str, limit: int = 20
+        self, user_id: str, channel_id: str, limit: int = 10
     ):
         """
         Get the game history for a specific player in a specific channel.
@@ -224,7 +224,7 @@ class Slackelo:
         Args:
             user_id: The user ID to get history for
             channel_id: The channel ID to get history for
-            limit: Maximum number of games to return (default: 20)
+            limit: Maximum number of games to return (default: 10)
 
         Returns:
             List of dictionaries containing game history
@@ -241,13 +241,40 @@ class Slackelo:
             JOIN games g ON pg.game_id = g.id
             WHERE pg.user_id = ?
             AND g.channel_id = ?
-            ORDER BY g.timestamp ASC
+            ORDER BY g.timestamp DESC
             LIMIT ?
             """,
             (user_id, channel_id, limit),
         )
 
         return history
+
+    def get_player_game_count(self, user_id: str, channel_id: str):
+        """
+        Get the total number of games a player has participated in within a channel.
+
+        Args:
+            user_id: The user ID to count games for
+            channel_id: The channel ID to count games in
+
+        Returns:
+            Integer count of games
+        """
+        result = self.db.execute_query(
+            """
+            SELECT
+                COUNT(*) as game_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE pg.user_id = ?
+            AND g.channel_id = ?
+            """,
+            (user_id, channel_id),
+        )
+
+        if result and "game_count" in result[0]:
+            return result[0]["game_count"]
+        return 0
 
 
 def calculate_elo_win(winner_elo: int, loser_elo: int, k_factor: int = 32):
