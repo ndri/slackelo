@@ -12,7 +12,6 @@ from slack_bolt.adapter.flask import SlackRequestHandler
 from slack_bolt.oauth.oauth_flow import OAuthFlow
 from dotenv import load_dotenv
 from slackelo import Slackelo
-from elo import calculate_group_elo_with_draws
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -105,42 +104,36 @@ def process_game_rankings(text, channel_id, is_simulation=False):
     if sum(len(group) for group in ranked_player_ids) < 2:
         return "A game must have at least 2 players."
 
-    flat_player_ids = [player for rank in ranked_player_ids for player in rank]
-    pre_game_ratings = {}
-    player_positions = {}
-    position = 1
-
-    for rank_group in ranked_player_ids:
-        for player_id in rank_group:
-            player_positions[player_id] = position
-        position += len(rank_group)
-
-    for player_id in flat_player_ids:
-        pre_game_ratings[player_id] = slackelo.get_player_channel_rating(
-            player_id, channel_id
-        )
-
     if not is_simulation:
         game_id = slackelo.create_game(channel_id, ranked_player_ids)
-        post_game_ratings = {
-            player_id: slackelo.get_player_channel_rating(player_id, channel_id)
-            for player_id in flat_player_ids
-        }
+
+        # Get flat list of player IDs
+        flat_player_ids = [
+            player for rank in ranked_player_ids for player in rank
+        ]
+
+        # Get pre-game ratings (have to reconstruct from player_games)
+        pre_game_ratings = {}
+        post_game_ratings = {}
+        player_positions = {}
+
+        for player_id in flat_player_ids:
+            post_game_ratings[player_id] = slackelo.get_player_channel_rating(
+                player_id, channel_id
+            )
+
+            # Get player's game history to find the most recent game (which should be the one we just created)
+            history = slackelo.get_player_game_history(player_id, channel_id, 1)
+            if history:
+                pre_game_ratings[player_id] = history[0]["rating_before"]
+                player_positions[player_id] = history[0]["position"]
+
         response_prefix = "Game recorded! Results:\n"
         response_suffix = ""
     else:
-        current_ratings = list(pre_game_ratings.values())
-        positions_list = [
-            player_positions[player_id] for player_id in flat_player_ids
-        ]
-
-        new_ratings = calculate_group_elo_with_draws(
-            current_ratings, positions_list
+        pre_game_ratings, post_game_ratings, player_positions = (
+            slackelo.simulate_game(channel_id, ranked_player_ids)
         )
-
-        post_game_ratings = {}
-        for i, player_id in enumerate(flat_player_ids):
-            post_game_ratings[player_id] = new_ratings[i]
 
         response_prefix = "Simulation results (no changes saved):\n"
         response_suffix = "\n_This is a simulation only. Use `/game` to record an actual game._"

@@ -2,7 +2,7 @@
 API for interacting with the Slackelo database.
 """
 
-from typing import List
+from typing import List, Dict, Tuple
 import time
 from sqlite_connector import SQLiteConnector
 from elo import calculate_group_elo_with_draws
@@ -121,6 +121,7 @@ class Slackelo:
         new_ratings = calculate_group_elo_with_draws(
             old_ratings,
             [player_positions[player["user_id"]] for player in channel_players],
+            k_factor=32,
         )
 
         # Update ratings for each player
@@ -143,6 +144,68 @@ class Slackelo:
             )
 
         return game_id
+
+    def simulate_game(
+        self, channel_id: str, ranked_player_ids: List[List[str]]
+    ) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, int]]:
+        """
+        Simulate a game to calculate rating changes without saving to the database.
+
+        Args:
+            channel_id: Channel ID where the simulation is taking place
+            ranked_player_ids: List of lists of player IDs, where each inner list
+                              represents players that tied at that position.
+
+        Returns:
+            Tuple containing:
+            - pre_game_ratings: Dictionary mapping player_id to current rating
+            - post_game_ratings: Dictionary mapping player_id to simulated new rating
+            - player_positions: Dictionary mapping player_id to position in the game
+        """
+        # Flatten the list to count total players
+        flat_player_ids = [
+            player for rank in ranked_player_ids for player in rank
+        ]
+
+        if len(flat_player_ids) < 2:
+            raise Exception("A game must have at least 2 players")
+
+        # Check for duplicate players
+        if len(flat_player_ids) != len(set(flat_player_ids)):
+            raise Exception("A player cannot be in multiple positions")
+
+        # Get player positions
+        player_positions = {}
+        position = 1
+
+        for rank_group in ranked_player_ids:
+            for player_id in rank_group:
+                player_positions[player_id] = position
+            position += len(rank_group)
+
+        # Get pre-game ratings
+        pre_game_ratings = {}
+        for player_id in flat_player_ids:
+            pre_game_ratings[player_id] = self.get_player_channel_rating(
+                player_id, channel_id
+            )
+
+        # Calculate new ratings
+        current_ratings = list(pre_game_ratings.values())
+        positions_list = [
+            player_positions[player_id] for player_id in flat_player_ids
+        ]
+
+        new_ratings = calculate_group_elo_with_draws(
+            current_ratings, positions_list, k_factor=32
+        )
+
+        # Map new ratings to player IDs
+        post_game_ratings = {}
+        for i, player_id in enumerate(flat_player_ids):
+            post_game_ratings[player_id] = new_ratings[i]
+
+        return pre_game_ratings, post_game_ratings, player_positions
 
     def undo_last_game(self, channel_id: str):
         """
