@@ -16,7 +16,6 @@ h1 {
 
 .btn {
   display: inline-block;
-  margin-top: 20px;
 }
 
 .success {
@@ -39,4 +38,8 @@ ul {
   text-align: left;
   display: inline-block;
   margin: 20px auto;
+}
+
+.small {
+  font-size: 0.75em;
 }
