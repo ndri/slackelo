@@ -1,0 +1,131 @@
+{% extends "base.html" %} {% block title %}Slackelo - Privacy Policy{% endblock %} {%
+block content %}
+<h1>Privacy Policy</h1>
+<div style="text-align: left">
+  <p><em>Last Updated: 30th March 2025</em></p>
+
+  <h2>Introduction</h2>
+  <p>
+    Slackelo ("we", "our", or "us") is committed to protecting the privacy of users
+    ("you" or "your") of our Slack bot application. This Privacy Policy explains what
+    information we collect, how we use it, and the choices you have regarding your
+    information.
+  </p>
+
+  <h2>Information We Collect</h2>
+
+  <h3>Information from Slack</h3>
+  <p>When you install Slackelo on your Slack workspace, we collect and store:</p>
+  <ul>
+    <li>
+      <strong>Basic Installation Data</strong>: Workspace ID, bot tokens, and
+      installation timestamps required for the application to function properly.
+    </li>
+    <li>
+      <strong>User IDs</strong>: Anonymous identifiers provided by Slack that allow us
+      to track player ratings and game history without collecting personally
+      identifiable information.
+    </li>
+    <li>
+      <strong>Channel IDs</strong>: Anonymous identifiers for Slack channels where the
+      bot is used, allowing channel-specific leaderboards and settings.
+    </li>
+  </ul>
+
+  <h3>Game Data</h3>
+  <p>When you use Slackelo commands, we collect:</p>
+  <ul>
+    <li>
+      <strong>Game Results</strong>: Player rankings and timestamps used to calculate
+      and update Elo ratings.
+    </li>
+    <li>
+      <strong>Rating Information</strong>: Current and historical Elo ratings associated
+      with your Slack user ID.
+    </li>
+    <li>
+      <strong>Command Usage</strong>: Information about which commands are used and in
+      which channels.
+    </li>
+  </ul>
+
+  <h2>How We Use Your Information</h2>
+  <p>We use the collected information solely for the following purposes:</p>
+  <ul>
+    <li>
+      <strong>Providing Core Functionality</strong>: Calculating and updating Elo
+      ratings, generating leaderboards, and tracking game history.
+    </li>
+    <li>
+      <strong>Improving the Service</strong>: Understanding how users interact with the
+      bot to enhance features and usability.
+    </li>
+    <li>
+      <strong>Technical Support</strong>: Troubleshooting issues that may arise during
+      use.
+    </li>
+  </ul>
+
+  <h2>Data Storage and Security</h2>
+  <ul>
+    <li>
+      <strong>Data Storage</strong>: All data is stored in a SQLite database as
+      described in our application code.
+    </li>
+    <li>
+      <strong>Security Measures</strong>: We implement reasonable security measures to
+      protect the data we collect. However, no method of transmission or storage is 100%
+      secure, and we cannot guarantee absolute security.
+    </li>
+  </ul>
+
+  <h2>Data Retention</h2>
+  <p>
+    We retain your data as long as you continue to use Slackelo in your Slack workspace.
+    If you uninstall the bot, you may request the deletion of your data by contacting
+    us.
+  </p>
+
+  <h2>Third-Party Services</h2>
+  <p>
+    We do not share your information with any third parties except as required to
+    provide the Slackelo service (such as hosting services).
+  </p>
+
+  <h2>Your Rights and Choices</h2>
+  <p>You have the following rights regarding your information:</p>
+  <ul>
+    <li>
+      <strong>Access</strong>: You can view your rating and game history using the
+      <code>/rating</code> and <code>/history</code> commands.
+    </li>
+    <li>
+      <strong>Deletion</strong>: You can request the deletion of your data by contacting
+      us.
+    </li>
+    <li>
+      <strong>Opt-Out</strong>: You can opt out of data collection by uninstalling
+      Slackelo from your Slack workspace.
+    </li>
+  </ul>
+
+  <h2>Changes to This Privacy Policy</h2>
+  <p>
+    We may update this Privacy Policy from time to time. We will notify users of any
+    significant changes by posting the new Privacy Policy on our GitHub repository
+    and/or through Slack.
+  </p>
+
+  <h2>Contact Us</h2>
+  <p>
+    If you have any questions about this Privacy Policy or our data practices, please
+    contact us at hello@andri.io.
+  </p>
+
+  <hr />
+  <p>
+    This Privacy Policy is effective as of 30th March 2025 and will remain in effect
+    except with respect to any changes in its provisions in the future.
+  </p>
+</div>
+{% endblock %}

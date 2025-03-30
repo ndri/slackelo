@@ -1,9 +1,20 @@
-{% extends "base.html" %}
-
-{% block content %}
-    <h1>Slackelo</h1>
-    <p>An Elo rating system for tracking competitive games in Slack channels.</p>
-    <div class="btn">
-        <a href="{{ install_url }}"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
-    </div>
+{% extends "base.html" %} {% block content %}
+<h1>Slackelo</h1>
+<p>An Elo rating system for tracking competitive games in Slack channels.</p>
+<div class="btn">
+  <a href="{{ install_url }}"
+    ><img
+      alt="Add to Slack"
+      height="40"
+      width="139"
+      src="https://platform.slack-edge.com/img/add_to_slack.png"
+      srcset="
+        https://platform.slack-edge.com/img/add_to_slack.png    1x,
+        https://platform.slack-edge.com/img/add_to_slack@2x.png 2x
+      "
+  /></a>
+</div>
+<p style="margin-top: 30px; font-size: 0.75em">
+  By installing Slackelo, you agree with the <a href="./privacy">privacy policy</a>.
+</p>
 {% endblock %}

@@ -445,6 +445,12 @@ def hello():
     return render_template("index.html", install_url=install_url)
 
 
+@app.route("/privacy")
+def privacy_policy():
+    """Render the privacy policy page"""
+    return render_template("privacy.html")
+
+
 @app.route("/events", methods=["POST"])
 def slack_events():
     try:
