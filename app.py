@@ -25,20 +25,52 @@ load_dotenv()
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
+# Configuration from .env
 db_path: str = os.environ.get("DB_PATH", "slackelo.db")
-slackelo = Slackelo(db_path, init_sql_file="init.sql")
+init_sql_file: str = os.environ.get("INIT_SQL_FILE", "init.sql")
+
+# OAuth URLs
+oauth_redirect_uri: str = os.environ.get("OAUTH_REDIRECT_URI")
+install_path: str = os.environ.get("INSTALL_PATH", "/install")
+redirect_uri_path: str = os.environ.get("REDIRECT_URI_PATH", "/oauth/redirect")
+success_url: str = os.environ.get("SUCCESS_URL", "/slackelo/success")
+
+# Slack app credentials
+signing_secret = os.environ.get("SLACK_SIGNING_SECRET")
+client_id = os.environ.get("SLACK_CLIENT_ID")
+client_secret = os.environ.get("SLACK_CLIENT_SECRET")
+
+if not oauth_redirect_uri:
+    raise ValueError(
+        "Missing required environment variable: OAUTH_REDIRECT_URI"
+    )
+
+if not signing_secret:
+    raise ValueError(
+        "Missing required environment variable: SLACK_SIGNING_SECRET"
+    )
+
+if not client_id:
+    raise ValueError("Missing required environment variable: SLACK_CLIENT_ID")
+
+if not client_secret:
+    raise ValueError(
+        "Missing required environment variable: SLACK_CLIENT_SECRET"
+    )
+
+slackelo = Slackelo(db_path, init_sql_file=init_sql_file)
 
 bolt_app = App(
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+    signing_secret=signing_secret,
     oauth_flow=OAuthFlow.sqlite3(
         database=db_path,
-        client_id=os.environ.get("SLACK_CLIENT_ID"),
-        client_secret=os.environ.get("SLACK_RANDOM_STRING"),
+        client_id=client_id,
+        client_secret=client_secret,
         scopes=["channels:history", "chat:write", "commands"],
-        redirect_uri="https://andri.io/slackelo/oauth/redirect",
-        install_path="/install",
-        redirect_uri_path="/oauth/redirect",
-        success_url="/slackelo/success",
+        redirect_uri=oauth_redirect_uri,
+        install_path=install_path,
+        redirect_uri_path=redirect_uri_path,
+        success_url=success_url,
     ),
 )
 
@@ -409,7 +441,7 @@ def help_command(ack: callable, _, say: callable) -> None:
 @app.route("/")
 def hello():
     base_url = request.url_root.rstrip("/")
-    install_url = f"{base_url}/install"
+    install_url = f"{base_url}{install_path}"
     return render_template("index.html", install_url=install_url)
 
 
@@ -447,8 +479,10 @@ def oauth_redirect():
 def install():
     try:
         base_url = request.url_root.rstrip("/")
-        success_url = f"{base_url}/success"
-        bolt_app.oauth_flow.settings.success_url = success_url
+        install_success_url = (
+            os.environ.get("INSTALL_SUCCESS_URL") or f"{base_url}/success"
+        )
+        bolt_app.oauth_flow.settings.success_url = install_success_url
         return handler.handle(request)
     except Exception as e:
         logger.error(f"Error in install: {str(e)}")
@@ -468,5 +502,7 @@ def handle_content_type():
 
 
 if __name__ == "__main__":
-    logger.info("Starting Slackelo app...")
-    app.run(host="0.0.0.0", port=8080)
+    port = int(os.environ.get("PORT", 8080))
+    host = os.environ.get("HOST", "0.0.0.0")
+    logger.info(f"Starting Slackelo app on {host}:{port}...")
+    app.run(host=host, port=port)
