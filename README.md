@@ -2,6 +2,8 @@
 
 Slackelo is a Slack bot that tracks Elo ratings for competitive games played within your Slack channels. Whether you're tracking ping pong matches, chess games, Mario Kart races, or any other competitive activity with two or more players, Slackelo makes it easy to record results and maintain a leaderboard.
 
+![banner that shows a bunch of example commands and responses](/static/banner.png)
+
 ## Features
 
 - 📊 **Track Elo Ratings**: Automatically calculate and update Elo ratings based on game results
@@ -165,7 +167,7 @@ Read more about the Elo rating system on [Wikipedia](https://en.wikipedia.org/wi
 
 ## Contributing
 
-Contributions are welcome! Feel free to submit a Pull Request.
+Contributions are welcome! Feel free to submit a pull request.
 
 ## License
 
