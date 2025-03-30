@@ -5,7 +5,7 @@ Vibecoded Slack bot for tracking Elo ratings in games with 2 or more players.
 import os
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any
 from flask import Flask, request, jsonify, render_template
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
@@ -26,8 +26,7 @@ load_dotenv()
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 db_path: str = os.environ.get("DB_PATH", "slackelo.db")
-k_factor: int = int(os.environ.get("K_FACTOR", 32))
-slackelo = Slackelo(db_path, init_sql_file="init.sql", k_factor=k_factor)
+slackelo = Slackelo(db_path, init_sql_file="init.sql")
 
 bolt_app = App(
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
@@ -315,6 +314,51 @@ def show_history(ack: callable, command: Dict[str, Any], say: callable):
         say(f"Error fetching history: {str(e)}")
 
 
+@bolt_app.command("/kfactor")
+def set_k_factor(ack: callable, command: Dict[str, Any], say: callable):
+    """Set or view the k-factor for the current channel"""
+    ack()
+
+    channel_id = command["channel_id"]
+    text = command["text"].strip()
+
+    old_k_factor = slackelo.get_channel_k_factor(channel_id)
+
+    try:
+        # If no value provided, show current k-factor
+        if not text:
+            say(
+                f"The current k-factor for this channel is *{old_k_factor}*.\n"
+                f"This affects how quickly ratings change after games.\n"
+                f"• The standard value is 32\n"
+                f"• Higher values (e.g., 64): Ratings change more quickly\n"
+                f"• Lower values (e.g., 16): Ratings change more slowly\n"
+                f"Use `/kfactor [value]` to set a new value."
+            )
+            return
+
+        # Try to parse the provided value
+        if not text.isdigit() or int(text) <= 0:
+            say(
+                "The k-factor must be a positive integer.\n"
+                "Recommended values: 16 (slow changes), 32 (standard), 64 (rapid changes)"
+            )
+            return
+
+        new_k_factor = int(text)
+        slackelo.set_channel_k_factor(channel_id, new_k_factor)
+
+        say(
+            f"The k-factor for this channel has been set from {old_k_factor} to *{new_k_factor}*."
+        )
+
+    except ValueError as ve:
+        say(f"Error: {str(ve)}")
+    except Exception as e:
+        logger.error(f"Error in set_k_factor: {str(e)}")
+        say(f"Error setting k-factor: {str(e)}")
+
+
 @bolt_app.command("/help")
 def help_command(ack: callable, _, say: callable) -> None:
     """Show available commands and usage"""
@@ -328,20 +372,32 @@ def help_command(ack: callable, _, say: callable) -> None:
             },
             {
                 "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Slackelo is an Elo rating bot for tracking competitive games with two or more players in Slack channels.",
+                },
+            },
+            {
+                "type": "section",
                 "text": {"type": "mrkdwn", "text": "*Available Commands:*"},
             },
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "• `/game @player1 @player2 @player3` - Record a game with players in order of ranking (winner first)\n• `/game @player1=@player2 @player3` - Record a game with ties (player1 and player2 tied for first)\n• `/simulate @player1 @player2 @player3` - Simulate a game to see rating changes without saving\n• `/leaderboard [limit]` - Show channel leaderboard (optional limit parameter)\n• `/rating [@player]` - Show your rating or another player's rating\n• `/history [@player]` - View your game history or another player's history\n• `/undo` - Undo the last game in the channel\n• `/help` - Show this help message",
-                },
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "Slackelo is an Elo rating system for tracking competitive games in Slack channels.",
+                    "text": "\n".join(
+                        [
+                            "• `/game @player1 @player2 @player3` - Record a game with players in order of ranking (winner first)",
+                            "• `/game @player1=@player2 @player3` - Record a game with ties (player1 and player2 tied for first)",
+                            "• `/simulate @player1 @player2 @player3` - Simulate a game to see rating changes without saving",
+                            "• `/leaderboard [limit]` - Show channel leaderboard (optional limit parameter)",
+                            "• `/rating [@player]` - Show your rating or another player's rating",
+                            "• `/history [@player]` - View your game history or another player's history",
+                            "• `/kfactor [value]` - View or set the k-factor for this channel",
+                            "• `/undo` - Undo the last game in the channel",
+                            "• `/help` - Show this help message",
+                        ]
+                    ),
                 },
             },
         ]

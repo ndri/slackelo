@@ -7,6 +7,8 @@ import time
 from sqlite_connector import SQLiteConnector
 from elo import calculate_group_elo_with_draws
 
+DEFAULT_K_FACTOR = 32
+
 
 class Slackelo:
 
@@ -14,10 +16,8 @@ class Slackelo:
         self,
         db_path: str,
         init_sql_file: Optional[str] = None,
-        k_factor: Optional[int] = 32,
     ):
         self.db: SQLiteConnector = SQLiteConnector(db_path, init_sql_file)
-        self.k_factor: int = k_factor
 
     def get_or_create_player(self, user_id: str) -> Dict[str, Any]:
         """Get or create a player in the players table."""
@@ -44,8 +44,8 @@ class Slackelo:
 
         if not channel:
             self.db.execute_non_query(
-                "INSERT INTO channels (channel_id) VALUES (?)",
-                (channel_id,),
+                "INSERT INTO channels (channel_id, k_factor) VALUES (?, ?)",
+                (channel_id, DEFAULT_K_FACTOR),
             )
             channel = self.db.execute_query(
                 "SELECT * FROM channels WHERE channel_id = ?", (channel_id,)
@@ -77,6 +77,40 @@ class Slackelo:
             )
 
         return channel_player[0]
+
+    def get_channel_k_factor(self, channel_id: str) -> int:
+        """Get the k-factor for a specific channel."""
+        channel = self.get_or_create_channel(channel_id)
+        return (
+            channel["k_factor"]
+            if channel["k_factor"] is not None
+            else DEFAULT_K_FACTOR
+        )
+
+    def set_channel_k_factor(self, channel_id: str, k_factor: int) -> bool:
+        """
+        Set the k-factor for a specific channel.
+
+        Args:
+            channel_id: Channel ID to update
+            k_factor: New k-factor value (must be a positive integer)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if k_factor <= 0:
+            raise ValueError("K-factor must be a positive integer")
+
+        # Ensure channel exists
+        self.get_or_create_channel(channel_id)
+
+        # Update the k-factor
+        self.db.execute_non_query(
+            "UPDATE channels SET k_factor = ? WHERE channel_id = ?",
+            (k_factor, channel_id),
+        )
+
+        return True
 
     def create_game(
         self, channel_id: str, ranked_player_ids: List[List[str]]
@@ -131,11 +165,14 @@ class Slackelo:
             )
             channel_players.append(channel_player)
 
+        # Get channel-specific k-factor
+        k_factor = self.get_channel_k_factor(channel_id)
+
         old_ratings = [int(player["rating"]) for player in channel_players]
         new_ratings = calculate_group_elo_with_draws(
             old_ratings,
             [player_positions[player["user_id"]] for player in channel_players],
-            k_factor=self.k_factor,
+            k_factor=k_factor,
         )
 
         # Update ratings for each player
@@ -204,6 +241,9 @@ class Slackelo:
                 player_id, channel_id
             )
 
+        # Get channel-specific k-factor
+        k_factor = self.get_channel_k_factor(channel_id)
+
         # Calculate new ratings
         current_ratings = list(pre_game_ratings.values())
         positions_list = [
@@ -211,7 +251,7 @@ class Slackelo:
         ]
 
         new_ratings = calculate_group_elo_with_draws(
-            current_ratings, positions_list, k_factor=self.k_factor
+            current_ratings, positions_list, k_factor=k_factor
         )
 
         # Map new ratings to player IDs

@@ -3,7 +3,8 @@ CREATE TABLE IF NOT EXISTS players (
 );
 
 CREATE TABLE IF NOT EXISTS channels (
-    channel_id TEXT PRIMARY KEY
+    channel_id TEXT PRIMARY KEY,
+    k_factor INTEGER DEFAULT 32
 );
 
 CREATE TABLE IF NOT EXISTS channel_players (
