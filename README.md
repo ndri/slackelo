@@ -77,7 +77,7 @@ Do note that the official Slackelo bot relies on my server, which might not be a
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/slackelo.git
+   git clone https://github.com/ndri/slackelo.git
    cd slackelo
    ```
 
