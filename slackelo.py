@@ -169,7 +169,7 @@ class Slackelo:
         k_factor = self.get_channel_k_factor(channel_id)
 
         old_ratings = [int(player["rating"]) for player in channel_players]
-        new_ratings = calculate_group_elo_with_draws(
+        rating_changes = calculate_group_elo_with_draws(
             old_ratings,
             [player_positions[player["user_id"]] for player in channel_players],
             k_factor=k_factor,
@@ -177,6 +177,7 @@ class Slackelo:
 
         # Update ratings for each player
         for i, player in enumerate(channel_players):
+            new_rating = old_ratings[i] + rating_changes[i]
             self.db.execute_non_query(
                 "INSERT INTO player_games "
                 "(user_id, game_id, rating_before, rating_after, position) "
@@ -185,13 +186,13 @@ class Slackelo:
                     player["user_id"],
                     game_id,
                     old_ratings[i],
-                    new_ratings[i],
+                    new_rating,
                     player_positions[player["user_id"]],
                 ),
             )
             self.db.execute_non_query(
                 "UPDATE channel_players SET rating = ? WHERE user_id = ? AND channel_id = ?",
-                (new_ratings[i], player["user_id"], channel_id),
+                (new_rating, player["user_id"], channel_id),
             )
 
         return game_id
@@ -244,20 +245,20 @@ class Slackelo:
         # Get channel-specific k-factor
         k_factor = self.get_channel_k_factor(channel_id)
 
-        # Calculate new ratings
+        # Calculate rating changes
         current_ratings = list(pre_game_ratings.values())
         positions_list = [
             player_positions[player_id] for player_id in flat_player_ids
         ]
 
-        new_ratings = calculate_group_elo_with_draws(
+        rating_changes = calculate_group_elo_with_draws(
             current_ratings, positions_list, k_factor=k_factor
         )
 
         # Map new ratings to player IDs
         post_game_ratings = {}
         for i, player_id in enumerate(flat_player_ids):
-            post_game_ratings[player_id] = new_ratings[i]
+            post_game_ratings[player_id] = current_ratings[i] + rating_changes[i]
 
         return pre_game_ratings, post_game_ratings, player_positions
 

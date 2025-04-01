@@ -17,15 +17,15 @@ def calculate_elo_win(
         k_factor: K-factor for Elo calculation
 
     Returns:
-        Tuple of the new Elo ratings for the winner and loser
+        Tuple of the Elo changes for the winner and loser
     """
     expected_win = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
     expected_lose = 1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))
 
-    new_winner_elo = winner_elo + round(k_factor * (1 - expected_win))
-    new_loser_elo = loser_elo + round(k_factor * (0 - expected_lose))
+    winner_change = round(k_factor * (1 - expected_win))
+    loser_change = round(k_factor * (0 - expected_lose))
 
-    return new_winner_elo, new_loser_elo
+    return winner_change, loser_change
 
 
 def calculate_elo_draw(
@@ -40,15 +40,15 @@ def calculate_elo_draw(
         k_factor: K-factor for Elo calculation
 
     Returns:
-        Tuple of the change in Elo for player 1 and player 2
+        Tuple of the Elo changes for player 1 and player 2
     """
     expected_p1_score = 1 / (1 + 10 ** ((player2_elo - player1_elo) / 400))
     expected_p2_score = 1 / (1 + 10 ** ((player1_elo - player2_elo) / 400))
 
-    new_player1_elo = player1_elo + round(k_factor * (0.5 - expected_p1_score))
-    new_player2_elo = player2_elo + round(k_factor * (0.5 - expected_p2_score))
+    player1_change = round(k_factor * (0.5 - expected_p1_score))
+    player2_change = round(k_factor * (0.5 - expected_p2_score))
 
-    return new_player1_elo, new_player2_elo
+    return player1_change, player2_change
 
 
 def calculate_group_elo_with_draws(
@@ -63,11 +63,9 @@ def calculate_group_elo_with_draws(
         k_factor: K-factor for Elo calculation
 
     Returns:
-        List of the new Elo ratings for the players
+        List of the Elo changes for the players
     """
-    new_elos = player_elos.copy()
-
-    # Track Elo changes separately, apply them all at once
+    # Track Elo changes
     elo_changes = [0] * len(player_elos)
 
     for i, (elo_i, pos_i) in enumerate(zip(player_elos, player_positions)):
@@ -78,26 +76,25 @@ def calculate_group_elo_with_draws(
             # Handle draws
             if pos_i == pos_j:
                 # Calculate Elo changes for a draw
-                p1_new, p2_new = calculate_elo_draw(elo_i, elo_j, k_factor)
+                p1_change, p2_change = calculate_elo_draw(elo_i, elo_j, k_factor)
                 # Divide by number of comparisons to avoid over-adjusting
-                elo_changes[i] += (p1_new - elo_i) / (len(player_elos) - 1)
-                elo_changes[j] += (p2_new - elo_j) / (len(player_elos) - 1)
+                elo_changes[i] += p1_change / (len(player_elos) - 1)
+                elo_changes[j] += p2_change / (len(player_elos) - 1)
 
             # Player i beat player j
             elif pos_i < pos_j:
                 # Calculate Elo changes for win/loss
-                winner_new, loser_new = calculate_elo_win(
+                winner_change, loser_change = calculate_elo_win(
                     elo_i, elo_j, k_factor
                 )
                 # Divide by number of comparisons to avoid over-adjusting
-                elo_changes[i] += (winner_new - elo_i) / (len(player_elos) - 1)
-                elo_changes[j] += (loser_new - elo_j) / (len(player_elos) - 1)
+                elo_changes[i] += winner_change / (len(player_elos) - 1)
+                elo_changes[j] += loser_change / (len(player_elos) - 1)
 
-    # Apply all changes at once
-    for i, change in enumerate(elo_changes):
-        new_elos[i] += round(change)
+    # Round all changes
+    elo_changes = [round(change) for change in elo_changes]
 
-    return new_elos
+    return elo_changes
 
 
 def calculate_group_elo(
@@ -114,7 +111,7 @@ def calculate_group_elo(
         k_factor: K-factor for Elo calculation
 
     Returns:
-        List of the new Elo ratings for the players
+        List of the Elo changes for the players
     """
     # Convert to positions format and use new function
     positions: List[int] = list(range(1, len(player_elos) + 1))
