@@ -76,6 +76,28 @@ class Migrations:
         # Sort versions
         return sorted(versions, key=lambda v: [int(x) for x in v.split('.')])
     
+    def _get_applied_migrations(self) -> List[str]:
+        """
+        Get the list of migrations that have already been applied
+        
+        Returns:
+            List of applied migration version numbers
+        """
+        # Check if version table exists
+        tables = self.connector.execute_query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='version'"
+        )
+        
+        if not tables:
+            return []
+        
+        # Get applied versions
+        versions = self.connector.execute_query(
+            "SELECT version FROM version ORDER BY applied_at"
+        )
+        
+        return [v['version'] for v in versions]
+        
     def migrate_to_version(self, target_version: str) -> None:
         """
         Migrate the database to the specified version
@@ -85,6 +107,7 @@ class Migrations:
         """
         current_version = self._get_current_version()
         available_migrations = self._get_available_migrations()
+        applied_migrations = self._get_applied_migrations()
         
         if not available_migrations:
             logger.warning("No migrations available")
@@ -117,6 +140,12 @@ class Migrations:
         # Apply migrations in order from current to target
         for i in range(current_index + 1, target_index + 1):
             version = available_migrations[i]
+            
+            # Skip migrations that have already been applied
+            if version in applied_migrations:
+                logger.info(f"Migration {version} already applied, skipping")
+                continue
+                
             migration_file = os.path.join(self.migrations_dir, f"{version}.sql")
             
             logger.info(f"Applying migration {version}")
