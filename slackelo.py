@@ -35,7 +35,7 @@ class Slackelo:
 
         return player[0]
 
-    def get_or_create_channel(self, channel_id: str) -> Dict[str, Any]:
+    def get_or_create_channel(self, channel_id: str, team_id: str = None) -> Dict[str, Any]:
         """Get or create a channel in the channels table."""
         channel = self.db.execute_query(
             "SELECT * FROM channels WHERE channel_id = ?", (channel_id,)
@@ -43,8 +43,17 @@ class Slackelo:
 
         if not channel:
             self.db.execute_non_query(
-                "INSERT INTO channels (channel_id, k_factor) VALUES (?, ?)",
-                (channel_id, DEFAULT_K_FACTOR),
+                "INSERT INTO channels (channel_id, k_factor, team_id) VALUES (?, ?, ?)",
+                (channel_id, DEFAULT_K_FACTOR, team_id),
+            )
+            channel = self.db.execute_query(
+                "SELECT * FROM channels WHERE channel_id = ?", (channel_id,)
+            )
+        elif team_id and channel[0]["team_id"] is None:
+            # Update team_id if it's provided and currently null
+            self.db.execute_non_query(
+                "UPDATE channels SET team_id = ? WHERE channel_id = ? AND team_id IS NULL",
+                (team_id, channel_id),
             )
             channel = self.db.execute_query(
                 "SELECT * FROM channels WHERE channel_id = ?", (channel_id,)
@@ -112,7 +121,7 @@ class Slackelo:
         return True
 
     def create_game(
-        self, channel_id: str, ranked_player_ids: List[List[str]]
+        self, channel_id: str, ranked_player_ids: List[List[str]], team_id: str = None
     ) -> int:
         """
         Create a new game with players in a specific channel.
@@ -124,6 +133,7 @@ class Slackelo:
                                For example: [["player1"], ["player2", "player3"], ["player4"]]
                                means player1 won, player2 and player3 tied for second,
                                and player4 came in third.
+            team_id: Team ID where the game took place
 
         Returns:
             The ID of the newly created game
@@ -139,6 +149,9 @@ class Slackelo:
         # Check for duplicate players
         if len(flat_player_ids) != len(set(flat_player_ids)):
             raise Exception("A player cannot be in multiple positions")
+
+        # Make sure channel exists and has team_id set
+        self.get_or_create_channel(channel_id, team_id)
 
         insert_output = self.db.execute_non_query(
             "INSERT INTO games (channel_id, timestamp) VALUES (?, ?)",
@@ -197,7 +210,7 @@ class Slackelo:
         return game_id
 
     def simulate_game(
-        self, channel_id: str, ranked_player_ids: List[List[str]]
+        self, channel_id: str, ranked_player_ids: List[List[str]], team_id: str = None
     ) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, int]]:
         """
         Simulate a game to calculate rating changes without saving to the database.
@@ -206,6 +219,7 @@ class Slackelo:
             channel_id: Channel ID where the simulation is taking place
             ranked_player_ids: List of lists of player IDs, where each inner list
                               represents players that tied at that position.
+            team_id: Team ID where the simulation is taking place
 
         Returns:
             Tuple containing:
@@ -224,6 +238,9 @@ class Slackelo:
         # Check for duplicate players
         if len(flat_player_ids) != len(set(flat_player_ids)):
             raise Exception("A player cannot be in multiple positions")
+            
+        # Make sure channel exists and has team_id set
+        self.get_or_create_channel(channel_id, team_id)
 
         # Get player positions
         player_positions = {}

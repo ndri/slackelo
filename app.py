@@ -92,7 +92,7 @@ handler = SlackRequestHandler(bolt_app)
 
 
 def process_game_rankings(
-    text: str, channel_id: str, is_simulation: bool = False
+    text: str, channel_id: str, team_id: str = None, is_simulation: bool = False
 ) -> str:
     """
     Process player rankings and calculate rating changes.
@@ -100,6 +100,7 @@ def process_game_rankings(
     Args:
         text: Command text with player mentions and rankings
         channel_id: Channel ID where the command was called
+        team_id: Team ID where the command was called
         is_simulation: Whether this is a simulation (True) or actual game (False)
 
     Returns:
@@ -111,7 +112,7 @@ def process_game_rankings(
         return "A game must have at least 2 players."
 
     if not is_simulation:
-        slackelo.create_game(channel_id, ranked_player_ids)
+        slackelo.create_game(channel_id, ranked_player_ids, team_id)
 
         # Get flat list of player IDs
         flat_player_ids = [
@@ -186,6 +187,7 @@ def create_game(ack: callable, command: Dict[str, Any], say: callable):
     """Create a new game with players and their rankings"""
     ack()
     channel_id = command["channel_id"]
+    team_id = command["team_id"]
     text = command["text"].strip()
 
     if not text:
@@ -195,7 +197,9 @@ def create_game(ack: callable, command: Dict[str, Any], say: callable):
         return
 
     try:
-        response = process_game_rankings(text, channel_id, is_simulation=False)
+        response = process_game_rankings(
+            text, channel_id, team_id, is_simulation=False
+        )
         say(response)
     except Exception as e:
         logger.error(f"Error in create_game: {str(e)}")
@@ -208,6 +212,7 @@ def simulate_game(ack: callable, command: Dict[str, Any], say: callable):
     ack()
 
     channel_id = command["channel_id"]
+    team_id = command["team_id"]
     text = command["text"].strip()
 
     if not text:
@@ -217,7 +222,9 @@ def simulate_game(ack: callable, command: Dict[str, Any], say: callable):
         return
 
     try:
-        response = process_game_rankings(text, channel_id, is_simulation=True)
+        response = process_game_rankings(
+            text, channel_id, team_id, is_simulation=True
+        )
         say(response)
     except Exception as e:
         logger.error(f"Error in simulate_game: {str(e)}")
@@ -230,6 +237,7 @@ def show_leaderboard(ack: callable, command: Dict[str, Any], say: callable):
     ack()
 
     channel_id = command["channel_id"]
+    team_id = command["team_id"]
     limit = 10
 
     text = command["text"].strip()
@@ -237,6 +245,8 @@ def show_leaderboard(ack: callable, command: Dict[str, Any], say: callable):
         limit = min(int(text), 25)
 
     try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
         leaderboard = slackelo.get_channel_leaderboard(channel_id, limit)
 
         if not leaderboard:
@@ -262,8 +272,12 @@ def undo_last_game(ack: callable, command: Dict[str, Any], say: callable):
     ack()
 
     channel_id = command["channel_id"]
+    team_id = command["team_id"]
 
     try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
+
         game_timestamp = slackelo.undo_last_game(channel_id)
         game_time = datetime.utcfromtimestamp(game_timestamp).strftime(
             "%Y-%m-%d %H:%M:%S"
@@ -284,10 +298,14 @@ def show_rating(ack: callable, command: Dict[str, Any], say: callable):
     ack()
 
     channel_id = command["channel_id"]
+    team_id = command["team_id"]
     text = command["text"].strip()
     user_id = command["user_id"]
 
     try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
+
         mentioned_users = extract_user_ids(text)
         if mentioned_users:
             user_id = mentioned_users[0]
@@ -309,10 +327,14 @@ def show_history(ack: callable, command: Dict[str, Any], say: callable):
     games_to_show = 10
 
     channel_id = command["channel_id"]
+    team_id = command["team_id"]
     text = command["text"].strip()
     user_id = command["user_id"]
 
     try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
+
         mentioned_users = extract_user_ids(text)
 
         if mentioned_users:
@@ -366,11 +388,15 @@ def set_k_factor(ack: callable, command: Dict[str, Any], say: callable):
     ack()
 
     channel_id = command["channel_id"]
+    team_id = command["team_id"]
     text = command["text"].strip()
 
-    old_k_factor = slackelo.get_channel_k_factor(channel_id)
-
     try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
+
+        old_k_factor = slackelo.get_channel_k_factor(channel_id)
+
         # If no value provided, show current k-factor
         if not text:
             say(
