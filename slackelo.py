@@ -439,7 +439,8 @@ class Slackelo:
                 pg.rating_before,
                 pg.rating_after,
                 pg.position,
-                g.timestamp
+                g.timestamp,
+                pg.gambled
             FROM player_games pg
             JOIN games g ON pg.game_id = g.id
             WHERE pg.user_id = ?

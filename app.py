@@ -168,27 +168,31 @@ def process_game_rankings(
             old_rating = pre_game_ratings[player_id]
             new_rating = post_game_ratings[player_id]
             change = new_rating - old_rating
-            
+
             # Check if player was gambling
             was_gambling = False
             if not is_simulation:
                 # For actual games, check player_games record
-                player_game = [g for g in slackelo.get_player_game_history(player_id, channel_id, 1) if g]
+                player_game = slackelo.get_player_game_history(
+                    player_id, channel_id, 1
+                )
                 if player_game and player_game[0].get("gambled", 0) == 1:
                     was_gambling = True
             else:
                 # For simulations, check current gambling status
-                was_gambling = slackelo.is_player_gambling(player_id, channel_id)
+                was_gambling = slackelo.is_player_gambling(
+                    player_id, channel_id
+                )
 
             if change > 0:
                 change_text = f"+{int(change)}"
             else:
                 change_text = f"{int(change)}"
-                
-            # Add gambling indicator if player was gambling
-            gambling_indicator = " 🎲" if was_gambling else ""
 
-            response += f"{position_emoji}{position_text}<@{player_id}> - *{int(old_rating)} → {int(new_rating)}* _({change_text}{gambling_indicator})_\n"
+            # Add gambling indicator if player was gambling
+            gambling_indicator = " (🎲 2x!)" if was_gambling else ""
+
+            response += f"{position_emoji}{position_text}<@{player_id}> - *{int(old_rating)} → {int(new_rating)}* _({change_text})_{gambling_indicator}\n"
 
         position += len(rank_group)
 
@@ -386,11 +390,13 @@ def show_history(ack: callable, command: Dict[str, Any], say: callable):
                 change_text = f"+{int(rating_change)}"
             else:
                 change_text = f"{int(rating_change)}"
-                
-            # Add gambling indicator if player gambled in this game
-            gambling_indicator = " 🎲" if game.get("gambled", 0) == 1 else ""
 
-            response += f"• {game_time} UTC: {position}{suffix} place - *{int(game['rating_before'])} → {int(game['rating_after'])}* _({change_text}{gambling_indicator})_\n"
+            # Add gambling indicator if player gambled in this game
+            gambling_indicator = (
+                " (🎲 2x!)" if game.get("gambled", 0) == 1 else ""
+            )
+
+            response += f"• {game_time} UTC: {position}{suffix} place - *{int(game['rating_before'])} → {int(game['rating_after'])}* _({change_text})_{gambling_indicator}\n"
 
         say(response)
 
@@ -460,12 +466,16 @@ def toggle_gambling(ack: callable, command: Dict[str, Any], say: callable):
     try:
         # Toggle gambling status
         is_gambling = slackelo.toggle_player_gambling(user_id, channel_id)
-        
+
         if is_gambling:
-            say(f"<@{user_id}> is now gambling! 🎲\nYour next rating change in this channel will be doubled (win big or lose big)!")
+            say(
+                f"<@{user_id}> is now gambling! 🎲\nYour next rating change in this channel will be doubled (win big or lose big)!"
+            )
         else:
-            say(f"<@{user_id}> is no longer gambling.\nYour next rating change will be normal.")
-            
+            say(
+                f"<@{user_id}> is no longer gambling.\nYour next rating change will be normal."
+            )
+
     except Exception as e:
         logger.error(f"Error in toggle_gambling: {str(e)}")
         say(f"Error toggling gambling status: {str(e)}")
