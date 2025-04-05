@@ -469,11 +469,11 @@ def toggle_gambling(ack: callable, command: Dict[str, Any], say: callable):
 
         if is_gambling:
             say(
-                f"<@{user_id}> is now gambling! 🎲\nYour next rating change in this channel will be doubled (win big or lose big)!"
+                f"<@{user_id}> is now gambling! 🎲\nTheir next rating change in this channel will be doubled (win big or lose big)!"
             )
         else:
             say(
-                f"<@{user_id}> is no longer gambling.\nYour next rating change will be normal."
+                f"<@{user_id}> is no longer gambling.\nTheir next rating change will be normal."
             )
 
     except Exception as e:
