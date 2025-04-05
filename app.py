@@ -17,6 +17,10 @@ from utils import (
     parse_player_rankings,
     get_ordinal_suffix,
 )
+from migrations import Migrations
+
+# Application version - update this when schema changes
+VERSION = "1.1"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,7 +31,6 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 
 # Configuration from .env
 db_path: str = os.environ.get("DB_PATH", "slackelo.db")
-init_sql_file: str = os.environ.get("INIT_SQL_FILE", "init.sql")
 
 # OAuth URLs
 oauth_redirect_uri: str = os.environ.get("OAUTH_REDIRECT_URI")
@@ -58,7 +61,18 @@ if not client_secret:
         "Missing required environment variable: SLACK_CLIENT_SECRET"
     )
 
-slackelo = Slackelo(db_path, init_sql_file=init_sql_file)
+# Run database migrations before initializing app
+migrations = Migrations(db_path)
+try:
+    logger.info(f"Running database migrations to version {VERSION}...")
+    migrations.migrate_to_version(VERSION)
+    logger.info(f"Database schema upgraded to version {VERSION}")
+except Exception as e:
+    logger.error(f"Error running migrations: {str(e)}")
+    raise
+
+# Initialize application after migrations
+slackelo = Slackelo(db_path)
 
 bolt_app = App(
     signing_secret=signing_secret,

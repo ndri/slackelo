@@ -15,9 +15,8 @@ class Slackelo:
     def __init__(
         self,
         db_path: str,
-        init_sql_file: Optional[str] = None,
     ):
-        self.db: SQLiteConnector = SQLiteConnector(db_path, init_sql_file)
+        self.db: SQLiteConnector = SQLiteConnector(db_path)
 
     def get_or_create_player(self, user_id: str) -> Dict[str, Any]:
         """Get or create a player in the players table."""
