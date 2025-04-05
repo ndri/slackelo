@@ -76,8 +76,8 @@ class Slackelo:
 
         if not channel_player:
             self.db.execute_non_query(
-                "INSERT INTO channel_players (user_id, channel_id, rating) VALUES (?, ?, ?)",
-                (user_id, channel_id, 1000),
+                "INSERT INTO channel_players (user_id, channel_id, rating, gambling) VALUES (?, ?, ?, ?)",
+                (user_id, channel_id, 1000, 0),
             )
             channel_player = self.db.execute_query(
                 "SELECT * FROM channel_players WHERE user_id = ? AND channel_id = ?",
@@ -85,6 +85,45 @@ class Slackelo:
             )
 
         return channel_player[0]
+        
+    def toggle_player_gambling(self, user_id: str, channel_id: str) -> bool:
+        """
+        Toggle a player's gambling status for the next game.
+        
+        Args:
+            user_id: The player's user ID
+            channel_id: The channel ID
+            
+        Returns:
+            The new gambling status (True if gambling, False if not)
+        """
+        # Make sure the player exists in the channel
+        channel_player = self.get_or_create_channel_player(user_id, channel_id)
+        
+        # Toggle gambling status
+        current_status = bool(channel_player.get("gambling", 0))
+        new_status = not current_status
+        
+        self.db.execute_non_query(
+            "UPDATE channel_players SET gambling = ? WHERE user_id = ? AND channel_id = ?",
+            (1 if new_status else 0, user_id, channel_id),
+        )
+        
+        return new_status
+        
+    def is_player_gambling(self, user_id: str, channel_id: str) -> bool:
+        """
+        Check if a player is gambling for the next game.
+        
+        Args:
+            user_id: The player's user ID
+            channel_id: The channel ID
+            
+        Returns:
+            True if the player is gambling, False otherwise
+        """
+        channel_player = self.get_or_create_channel_player(user_id, channel_id)
+        return bool(channel_player.get("gambling", 0))
 
     def get_channel_k_factor(self, channel_id: str) -> int:
         """Get the k-factor for a specific channel."""
@@ -187,25 +226,40 @@ class Slackelo:
             k_factor=k_factor,
         )
 
-        # Update ratings for each player
+        # Update ratings for each player, accounting for gambling
         for i, player in enumerate(channel_players):
-            new_rating = old_ratings[i] + rating_changes[i]
+            is_gambling = bool(player.get("gambling", 0))
+            
+            # Apply gambling multiplier if player is gambling
+            multiplier = 2 if is_gambling else 1
+            adjusted_change = rating_changes[i] * multiplier
+            new_rating = old_ratings[i] + adjusted_change
+            
             self.db.execute_non_query(
                 "INSERT INTO player_games "
-                "(user_id, game_id, rating_before, rating_after, position) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "(user_id, game_id, rating_before, rating_after, position, gambled) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     player["user_id"],
                     game_id,
                     old_ratings[i],
                     new_rating,
                     player_positions[player["user_id"]],
+                    1 if is_gambling else 0,
                 ),
             )
-            self.db.execute_non_query(
-                "UPDATE channel_players SET rating = ? WHERE user_id = ? AND channel_id = ?",
-                (new_rating, player["user_id"], channel_id),
-            )
+            
+            # Reset gambling status if player was gambling
+            if is_gambling:
+                self.db.execute_non_query(
+                    "UPDATE channel_players SET rating = ?, gambling = 0 WHERE user_id = ? AND channel_id = ?",
+                    (new_rating, player["user_id"], channel_id),
+                )
+            else:
+                self.db.execute_non_query(
+                    "UPDATE channel_players SET rating = ? WHERE user_id = ? AND channel_id = ?",
+                    (new_rating, player["user_id"], channel_id),
+                )
 
         return game_id
 
@@ -271,10 +325,17 @@ class Slackelo:
             current_ratings, positions_list, k_factor=k_factor
         )
 
-        # Map new ratings to player IDs
+        # Map new ratings to player IDs, accounting for gambling
         post_game_ratings = {}
         for i, player_id in enumerate(flat_player_ids):
-            post_game_ratings[player_id] = current_ratings[i] + rating_changes[i]
+            # Check if player is gambling
+            player_gambling = self.is_player_gambling(player_id, channel_id)
+            
+            # Apply gambling multiplier if player is gambling
+            multiplier = 2 if player_gambling else 1
+            adjusted_change = rating_changes[i] * multiplier
+            
+            post_game_ratings[player_id] = current_ratings[i] + adjusted_change
 
         return pre_game_ratings, post_game_ratings, player_positions
 
