@@ -225,7 +225,7 @@ def create_game(ack: callable, command: Dict[str, Any], say: callable):
 
 
 @bolt_app.command("/simulate")
-def simulate_game(ack: callable, command: Dict[str, Any], say: callable):
+def simulate_game(ack: callable, command: Dict[str, Any], respond: callable):
     """Simulate a game to see rating changes without saving to the database"""
     ack()
 
@@ -234,7 +234,7 @@ def simulate_game(ack: callable, command: Dict[str, Any], say: callable):
     text = command["text"].strip()
 
     if not text:
-        say(
+        respond(
             "Please provide player information. Format: `/simulate @player1 @player2 @player3` or `/simulate @player1=@player2 @player3` for ties."
         )
         return
@@ -243,10 +243,10 @@ def simulate_game(ack: callable, command: Dict[str, Any], say: callable):
         response = process_game_rankings(
             text, channel_id, team_id, is_simulation=True
         )
-        say(response)
+        respond(response)
     except Exception as e:
         logger.error(f"Error in simulate_game: {str(e)}")
-        say(f"Error simulating game: {str(e)}")
+        respond(f"Error simulating game: {str(e)}")
 
 
 @bolt_app.command("/leaderboard")
@@ -311,7 +311,7 @@ def undo_last_game(ack: callable, command: Dict[str, Any], say: callable):
 
 
 @bolt_app.command("/rating")
-def show_rating(ack: callable, command: Dict[str, Any], say: callable):
+def show_rating(ack: callable, command: Dict[str, Any], respond: callable):
     """Show a player's rating or your own if no player is specified"""
     ack()
 
@@ -330,15 +330,15 @@ def show_rating(ack: callable, command: Dict[str, Any], say: callable):
 
         rating = slackelo.get_player_channel_rating(user_id, channel_id)
 
-        say(f"<@{user_id}>'s current rating in this channel is {rating}.")
+        respond(f"<@{user_id}>'s current rating in this channel is {rating}.")
 
     except Exception as e:
         logger.error(f"Error in show_rating: {str(e)}")
-        say(f"Error fetching rating: {str(e)}")
+        respond(f"Error fetching rating: {str(e)}")
 
 
 @bolt_app.command("/history")
-def show_history(ack: callable, command: Dict[str, Any], say: callable):
+def show_history(ack: callable, command: Dict[str, Any], respond: callable):
     """Show a player's game history or your own if no player is specified"""
     ack()
 
@@ -366,7 +366,7 @@ def show_history(ack: callable, command: Dict[str, Any], say: callable):
         )
 
         if not latest_games:
-            say(f"No game history found for {player_name} in this channel.")
+            respond(f"No game history found for {player_name} in this channel.")
             return
 
         total_games = slackelo.get_player_game_count(user_id, channel_id)
@@ -398,11 +398,11 @@ def show_history(ack: callable, command: Dict[str, Any], say: callable):
 
             response += f"• {game_time} UTC: {position}{suffix} place - *{int(game['rating_before'])} → {int(game['rating_after'])}* _({change_text})_{gambling_indicator}\n"
 
-        say(response)
+        respond(response)
 
     except Exception as e:
         logger.error(f"Error in show_history: {str(e)}")
-        say(f"Error fetching history: {str(e)}")
+        respond(f"Error fetching history: {str(e)}")
 
 
 @bolt_app.command("/kfactor")
@@ -482,7 +482,7 @@ def toggle_gambling(ack: callable, command: Dict[str, Any], say: callable):
 
 
 @bolt_app.command("/help")
-def help_command(ack: callable, _, say: callable) -> None:
+def help_command(ack: callable, _, respond: callable) -> None:
     """Show available commands and usage"""
     ack()
 
@@ -526,7 +526,7 @@ def help_command(ack: callable, _, say: callable) -> None:
         ]
     }
 
-    say(blocks=help_text["blocks"])
+    respond(blocks=help_text["blocks"])
 
 
 @app.route("/")
