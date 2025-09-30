@@ -763,3 +763,45 @@ class Slackelo:
             stats["total_games"] = int(total_games[0]["total_games"])
 
         return stats
+
+    def reset_channel(self, channel_id: str) -> int:
+        """
+        Reset all data for a channel, including games and channel players.
+
+        Args:
+            channel_id: The channel ID to reset
+
+        Returns:
+            The number of games that were deleted
+        """
+        # Get count of games before deletion
+        games = self.db.execute_query(
+            "SELECT COUNT(*) as game_count FROM games WHERE channel_id = ?",
+            (channel_id,),
+        )
+        game_count = games[0]["game_count"] if games else 0
+
+        # Delete all player_games records for games in this channel
+        self.db.execute_non_query(
+            """
+            DELETE FROM player_games
+            WHERE game_id IN (
+                SELECT id FROM games WHERE channel_id = ?
+            )
+            """,
+            (channel_id,),
+        )
+
+        # Delete all games in this channel
+        self.db.execute_non_query(
+            "DELETE FROM games WHERE channel_id = ?",
+            (channel_id,),
+        )
+
+        # Delete all channel_players for this channel
+        self.db.execute_non_query(
+            "DELETE FROM channel_players WHERE channel_id = ?",
+            (channel_id,),
+        )
+
+        return game_count

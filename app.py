@@ -43,6 +43,9 @@ signing_secret = os.environ.get("SLACK_SIGNING_SECRET")
 client_id = os.environ.get("SLACK_CLIENT_ID")
 client_secret = os.environ.get("SLACK_CLIENT_SECRET")
 
+# Admin password
+admin_password = os.environ.get("ADMIN_PASSWORD")
+
 if not oauth_redirect_uri:
     raise ValueError(
         "Missing required environment variable: OAUTH_REDIRECT_URI"
@@ -662,6 +665,75 @@ def install():
 @app.route("/success", methods=["GET"])
 def success():
     return render_template("success.html")
+
+
+@app.route("/reset", methods=["POST"])
+def reset_channel():
+    """Reset a channel's data with password authentication"""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Request must include JSON data"}), 400
+
+        password = data.get("password")
+        channel_id = data.get("channel_id")
+
+        if not password or not channel_id:
+            return jsonify({"error": "Both 'password' and 'channel_id' are required"}), 400
+
+        # Verify password
+        if not admin_password:
+            return jsonify({"error": "Reset functionality is not configured"}), 503
+
+        if password != admin_password:
+            return jsonify({"error": "Invalid password"}), 401
+
+        # Get channel info to find team_id for posting message
+        channel = slackelo.db.execute_query(
+            "SELECT team_id FROM channels WHERE channel_id = ?",
+            (channel_id,)
+        )
+
+        if not channel or not channel[0].get("team_id"):
+            return jsonify({"error": "Channel not found or not configured"}), 404
+
+        team_id = channel[0]["team_id"]
+
+        # Reset the channel
+        game_count = slackelo.reset_channel(channel_id)
+
+        # Get bot token to post message
+        installation = bolt_app.installation_store.find_installation(
+            team_id=team_id,
+            enterprise_id=None,
+        )
+
+        if not installation:
+            logger.warning(f"Could not find installation for team {team_id}")
+            return jsonify({
+                "success": True,
+                "games_deleted": game_count,
+                "message": "Channel reset successfully, but could not post confirmation message"
+            }), 200
+
+        # Post message to channel
+        from slack_sdk import WebClient
+        client = WebClient(token=installation.bot_token)
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"🔄 *Channel has been reset!*\n\nAll {game_count} games have been deleted and all player data has been removed."
+        )
+
+        return jsonify({
+            "success": True,
+            "games_deleted": game_count,
+            "message": "Channel reset successfully"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in reset_channel: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.before_request
