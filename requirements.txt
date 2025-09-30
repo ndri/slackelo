@@ -4,4 +4,5 @@ flask
 wheel
 uwsgi
 python-dotenv
-matplotlib
+numpy>=1.21.0,<2.0
+matplotlib>=3.5.0,<3.9
