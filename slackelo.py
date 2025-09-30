@@ -479,3 +479,267 @@ class Slackelo:
         if result and "game_count" in result[0]:
             return int(result[0]["game_count"])
         return 0
+
+    def get_channel_statistics(self, channel_id: str) -> Dict[str, Any]:
+        """
+        Get various statistics for a channel.
+
+        Args:
+            channel_id: The channel ID to get statistics for
+
+        Returns:
+            Dictionary containing channel statistics
+        """
+        stats = {}
+
+        # Highest rating ever achieved
+        highest_rating = self.db.execute_query(
+            """
+            SELECT pg.user_id, MAX(pg.rating_after) as highest_rating
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            GROUP BY pg.user_id
+            ORDER BY highest_rating DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if highest_rating:
+            stats["highest_rating"] = {
+                "user_id": highest_rating[0]["user_id"],
+                "rating": int(highest_rating[0]["highest_rating"])
+            }
+
+        # Biggest rating increase in one game
+        biggest_increase = self.db.execute_query(
+            """
+            SELECT pg.user_id, pg.rating_after - pg.rating_before as rating_change, g.timestamp
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            ORDER BY rating_change DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if biggest_increase and biggest_increase[0]["rating_change"] > 0:
+            stats["biggest_increase"] = {
+                "user_id": biggest_increase[0]["user_id"],
+                "change": int(biggest_increase[0]["rating_change"])
+            }
+
+        # Biggest rating decrease in one game
+        biggest_decrease = self.db.execute_query(
+            """
+            SELECT pg.user_id, pg.rating_after - pg.rating_before as rating_change, g.timestamp
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            ORDER BY rating_change ASC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if biggest_decrease and biggest_decrease[0]["rating_change"] < 0:
+            stats["biggest_decrease"] = {
+                "user_id": biggest_decrease[0]["user_id"],
+                "change": int(biggest_decrease[0]["rating_change"])
+            }
+
+        # Most wins (1st place finishes)
+        most_wins = self.db.execute_query(
+            """
+            SELECT pg.user_id, COUNT(*) as win_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ? AND pg.position = 1
+            GROUP BY pg.user_id
+            ORDER BY win_count DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if most_wins:
+            stats["most_wins"] = {
+                "user_id": most_wins[0]["user_id"],
+                "wins": int(most_wins[0]["win_count"])
+            }
+
+        # Most losses (last place finishes)
+        most_losses = self.db.execute_query(
+            """
+            SELECT pg.user_id, COUNT(*) as loss_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            AND pg.position = (
+                SELECT MAX(position)
+                FROM player_games
+                WHERE game_id = pg.game_id
+            )
+            GROUP BY pg.user_id
+            ORDER BY loss_count DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if most_losses:
+            stats["most_losses"] = {
+                "user_id": most_losses[0]["user_id"],
+                "losses": int(most_losses[0]["loss_count"])
+            }
+
+        # Most games played
+        most_games = self.db.execute_query(
+            """
+            SELECT pg.user_id, COUNT(*) as game_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            GROUP BY pg.user_id
+            ORDER BY game_count DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if most_games:
+            stats["most_games"] = {
+                "user_id": most_games[0]["user_id"],
+                "games": int(most_games[0]["game_count"])
+            }
+
+        # Most volatile player (highest standard deviation in rating changes)
+        most_volatile = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                AVG((pg.rating_after - pg.rating_before) * (pg.rating_after - pg.rating_before)) as variance,
+                COUNT(*) as game_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            GROUP BY pg.user_id
+            HAVING game_count >= 3
+            ORDER BY variance DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if most_volatile:
+            stats["most_volatile"] = {
+                "user_id": most_volatile[0]["user_id"],
+                "volatility": round(most_volatile[0]["variance"] ** 0.5, 2)
+            }
+
+        # Most consistent player (lowest standard deviation in rating changes, min 3 games)
+        most_consistent = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                AVG((pg.rating_after - pg.rating_before) * (pg.rating_after - pg.rating_before)) as variance,
+                COUNT(*) as game_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            GROUP BY pg.user_id
+            HAVING game_count >= 3
+            ORDER BY variance ASC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if most_consistent:
+            stats["most_consistent"] = {
+                "user_id": most_consistent[0]["user_id"],
+                "volatility": round(most_consistent[0]["variance"] ** 0.5, 2)
+            }
+
+        # Longest win streak (consecutive 1st place finishes)
+        # This requires more complex logic, so we'll fetch all games for players and calculate
+        all_games = self.db.execute_query(
+            """
+            SELECT pg.user_id, pg.position, g.timestamp
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            ORDER BY pg.user_id, g.timestamp
+            """,
+            (channel_id,),
+        )
+
+        if all_games:
+            # Calculate win streaks
+            current_streak = 0
+            max_streak = 0
+            max_streak_user = None
+            current_user = None
+
+            for game in all_games:
+                if game["user_id"] != current_user:
+                    current_user = game["user_id"]
+                    current_streak = 0
+
+                if game["position"] == 1:
+                    current_streak += 1
+                    if current_streak > max_streak:
+                        max_streak = current_streak
+                        max_streak_user = game["user_id"]
+                else:
+                    current_streak = 0
+
+            if max_streak > 1:
+                stats["longest_win_streak"] = {
+                    "user_id": max_streak_user,
+                    "streak": max_streak
+                }
+
+        # Biggest comeback (lowest rating to highest rating)
+        biggest_comeback = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                MIN(pg.rating_after) as lowest_rating,
+                MAX(pg.rating_after) as highest_rating,
+                MAX(pg.rating_after) - MIN(pg.rating_after) as comeback
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            GROUP BY pg.user_id
+            HAVING comeback > 0
+            ORDER BY comeback DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if biggest_comeback and biggest_comeback[0]["comeback"] > 100:
+            stats["biggest_comeback"] = {
+                "user_id": biggest_comeback[0]["user_id"],
+                "comeback": int(biggest_comeback[0]["comeback"]),
+                "from": int(biggest_comeback[0]["lowest_rating"]),
+                "to": int(biggest_comeback[0]["highest_rating"])
+            }
+
+        # Total games played in channel
+        total_games = self.db.execute_query(
+            """
+            SELECT COUNT(*) as total_games
+            FROM games
+            WHERE channel_id = ?
+            """,
+            (channel_id,),
+        )
+
+        if total_games:
+            stats["total_games"] = int(total_games[0]["total_games"])
+
+        return stats

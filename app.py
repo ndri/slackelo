@@ -481,6 +481,74 @@ def toggle_gambling(ack: callable, command: Dict[str, Any], say: callable):
         say(f"Error toggling gambling status: {str(e)}")
 
 
+@bolt_app.command("/stats")
+def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
+    """Show channel statistics"""
+    ack()
+
+    channel_id = command["channel_id"]
+    team_id = command["team_id"]
+
+    try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
+        stats = slackelo.get_channel_statistics(channel_id)
+
+        if not stats or stats.get("total_games", 0) == 0:
+            say(
+                "No games found for this channel yet. Start playing games with `/game`!"
+            )
+            return
+
+        response = f"*Channel Statistics* ({stats.get('total_games', 0)} games played)\n\n"
+
+        # Highest rating ever
+        if "highest_rating" in stats:
+            response += f"🏆 *All-time highest rating:* <@{stats['highest_rating']['user_id']}> - {stats['highest_rating']['rating']}\n"
+
+        # Biggest increase
+        if "biggest_increase" in stats:
+            response += f"📈 *Biggest rating gain in one game:* <@{stats['biggest_increase']['user_id']}> - +{stats['biggest_increase']['change']}\n"
+
+        # Biggest decrease
+        if "biggest_decrease" in stats:
+            response += f"📉 *Biggest rating loss in one game:* <@{stats['biggest_decrease']['user_id']}> - {stats['biggest_decrease']['change']}\n"
+
+        # Most wins
+        if "most_wins" in stats:
+            response += f"🥇 *Most 1st place finishes:* <@{stats['most_wins']['user_id']}> - {stats['most_wins']['wins']} wins\n"
+
+        # Most losses
+        if "most_losses" in stats:
+            response += f"💩 *Most last place finishes:* <@{stats['most_losses']['user_id']}> - {stats['most_losses']['losses']} losses\n"
+
+        # Most games played
+        if "most_games" in stats:
+            response += f"🎮 *Most games played:* <@{stats['most_games']['user_id']}> - {stats['most_games']['games']} games\n"
+
+        # Longest win streak
+        if "longest_win_streak" in stats:
+            response += f"🔥 *Longest win streak:* <@{stats['longest_win_streak']['user_id']}> - {stats['longest_win_streak']['streak']} consecutive wins\n"
+
+        # Biggest comeback
+        if "biggest_comeback" in stats:
+            response += f"💪 *Biggest comeback:* <@{stats['biggest_comeback']['user_id']}> - {stats['biggest_comeback']['comeback']} point rise (from {stats['biggest_comeback']['from']} to {stats['biggest_comeback']['to']})\n"
+
+        # Most volatile
+        if "most_volatile" in stats:
+            response += f"🎢 *Most volatile player:* <@{stats['most_volatile']['user_id']}> - {stats['most_volatile']['volatility']} avg rating swing\n"
+
+        # Most consistent
+        if "most_consistent" in stats:
+            response += f"🎯 *Most consistent player:* <@{stats['most_consistent']['user_id']}> - {stats['most_consistent']['volatility']} avg rating swing\n"
+
+        say(response)
+
+    except Exception as e:
+        logger.error(f"Error in show_statistics: {str(e)}")
+        say(f"Error fetching statistics: {str(e)}")
+
+
 @bolt_app.command("/help")
 def help_command(ack: callable, _, respond: callable) -> None:
     """Show available commands and usage"""
@@ -517,6 +585,7 @@ def help_command(ack: callable, _, respond: callable) -> None:
                             "• `/history [@player]` - View your game history or another player's history",
                             "• `/kfactor [value]` - View or set the k-factor for this channel",
                             "• `/gamble` - Toggle doubling your next rating change (win big or lose big)",
+                            "• `/stats` - Show channel statistics",
                             "• `/undo` - Undo the last game in the channel",
                             "• `/help` - Show this help message",
                         ]
