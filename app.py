@@ -584,17 +584,18 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
         # Create the chart
         plt.figure(figsize=(12, 8))
 
-        # Plot each player's rating history
+        # Plot each player's rating history and build color legend
+        color_map = {}
         for user_id, history in player_histories.items():
             games = [point[0] for point in history]
             ratings = [point[1] for point in history]
-            plt.plot(games, ratings, marker='o', markersize=3, label=f'<@{user_id}>', linewidth=2)
+            line = plt.plot(games, ratings, marker='o', markersize=3, linewidth=2)[0]
+            color_map[user_id] = line.get_color()
 
         plt.xlabel('Games Played', fontsize=12)
         plt.ylabel('Rating', fontsize=12)
         plt.title('Player Rating History', fontsize=14, fontweight='bold')
         plt.grid(True, alpha=0.3)
-        plt.legend(loc='best', fontsize=10)
 
         # Add a horizontal line at 1000 (starting rating)
         plt.axhline(y=1000, color='gray', linestyle='--', alpha=0.5, linewidth=1)
@@ -605,13 +606,52 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
         buf.seek(0)
         plt.close()
 
+        # Build color legend message with color indicators
+        # Matplotlib cycles through colors, so we need to handle repeats
+        def rgb_to_hex(rgb_tuple):
+            """Convert RGB tuple (0-1 range) to hex color"""
+            return '#{:02x}{:02x}{:02x}'.format(
+                int(rgb_tuple[0] * 255),
+                int(rgb_tuple[1] * 255),
+                int(rgb_tuple[2] * 255)
+            )
+
+        # Define color emoji/indicators for common matplotlib colors
+        color_emoji_map = {
+            '#1f77b4': '🔵',  # blue
+            '#ff7f0e': '🟠',  # orange
+            '#2ca02c': '🟢',  # green
+            '#d62728': '🔴',  # red
+            '#9467bd': '🟣',  # purple
+            '#8c564b': '🟤',  # brown
+            '#e377c2': '🩷',  # pink
+            '#7f7f7f': '⚫',  # gray
+            '#bcbd22': '🟡',  # yellow
+            '#17becf': '🔷',  # cyan
+        }
+
+        legend_lines = []
+        for user_id, color in color_map.items():
+            # Normalize color to hex if it's in a different format
+            if isinstance(color, str) and color.startswith('#'):
+                hex_color = color.lower()
+            else:
+                # Handle tuple RGB format
+                hex_color = rgb_to_hex(color)
+
+            # Get emoji indicator for this color, or use a colored square
+            indicator = color_emoji_map.get(hex_color, '●')
+            legend_lines.append(f"{indicator} <@{user_id}>")
+
+        legend_message = "📊 *Player Rating History Chart*\n\n" + "\n".join(legend_lines)
+
         # Upload file to Slack
         client.files_upload_v2(
             channel=channel_id,
             file=buf,
             filename="rating_chart.png",
             title="Player Rating History",
-            initial_comment="📊 Here's the rating history chart for this channel!"
+            initial_comment=legend_message
         )
 
     except Exception as e:
