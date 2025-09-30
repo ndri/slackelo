@@ -512,6 +512,26 @@ class Slackelo:
                 "rating": int(highest_rating[0]["highest_rating"])
             }
 
+        # Lowest rating ever achieved
+        lowest_rating = self.db.execute_query(
+            """
+            SELECT pg.user_id, MIN(pg.rating_after) as lowest_rating
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            GROUP BY pg.user_id
+            ORDER BY lowest_rating ASC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if lowest_rating:
+            stats["lowest_rating"] = {
+                "user_id": lowest_rating[0]["user_id"],
+                "rating": int(lowest_rating[0]["lowest_rating"])
+            }
+
         # Biggest rating increase in one game
         biggest_increase = self.db.execute_query(
             """

@@ -506,6 +506,10 @@ def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
         if "highest_rating" in stats:
             response += f"🏆 *All-time highest rating:* <@{stats['highest_rating']['user_id']}> - {stats['highest_rating']['rating']}\n"
 
+        # Lowest rating ever
+        if "lowest_rating" in stats:
+            response += f"📛 *All-time lowest rating:* <@{stats['lowest_rating']['user_id']}> - {stats['lowest_rating']['rating']}\n"
+
         # Biggest increase
         if "biggest_increase" in stats:
             response += f"📈 *Biggest rating gain in one game:* <@{stats['biggest_increase']['user_id']}> - +{stats['biggest_increase']['change']}\n"
