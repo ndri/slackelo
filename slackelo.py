@@ -808,21 +808,38 @@ class Slackelo:
 
     def get_player_rating_history(self, channel_id: str) -> Dict[str, List[Tuple[int, int]]]:
         """
-        Get rating history for all players in a channel.
+        Get rating history for all players in a channel, chronologically by game number.
 
         Args:
             channel_id: The channel ID to get history for
 
         Returns:
             Dictionary mapping user_id to list of (game_number, rating) tuples
+            where game_number is the chronological game number in the channel
         """
-        # Get all games for this channel with player ratings
-        games = self.db.execute_query(
+        # Get all games in chronological order with a game number
+        all_games = self.db.execute_query(
+            """
+            SELECT DISTINCT g.id, g.timestamp
+            FROM games g
+            WHERE g.channel_id = ?
+            ORDER BY g.timestamp ASC
+            """,
+            (channel_id,),
+        )
+
+        if not all_games:
+            return {}
+
+        # Create mapping of game_id to chronological game number
+        game_id_to_number = {game["id"]: idx + 1 for idx, game in enumerate(all_games)}
+
+        # Get all player games with their ratings
+        player_games = self.db.execute_query(
             """
             SELECT
                 pg.user_id,
                 pg.rating_after,
-                g.timestamp,
                 g.id as game_id
             FROM player_games pg
             JOIN games g ON pg.game_id = g.id
@@ -832,24 +849,51 @@ class Slackelo:
             (channel_id,),
         )
 
-        if not games:
+        if not player_games:
             return {}
 
         # Build rating history for each player
         player_histories = {}
-        player_game_counts = {}
+        player_current_rating = {}
+        player_first_game = {}
 
-        for game in games:
-            user_id = game["user_id"]
+        # Get all unique players and their first game
+        all_players = set(pg["user_id"] for pg in player_games)
 
-            if user_id not in player_histories:
-                player_histories[user_id] = [(0, 1000)]  # Start at game 0 with rating 1000
-                player_game_counts[user_id] = 0
+        for user_id in all_players:
+            player_histories[user_id] = []
+            player_current_rating[user_id] = 1000
+            # Find first game this player participated in
+            first_game = min(
+                game_id_to_number[pg["game_id"]]
+                for pg in player_games
+                if pg["user_id"] == user_id
+            )
+            player_first_game[user_id] = first_game
 
-            player_game_counts[user_id] += 1
-            player_histories[user_id].append((
-                player_game_counts[user_id],
-                int(game["rating_after"])
-            ))
+        # Process each game chronologically
+        for game_number in range(1, len(all_games) + 1):
+            # Find which game_id this is
+            game_id = next(gid for gid, gnum in game_id_to_number.items() if gnum == game_number)
+
+            # Get players who participated in this game
+            players_in_game = {
+                pg["user_id"]: pg["rating_after"]
+                for pg in player_games
+                if pg["game_id"] == game_id
+            }
+
+            # Update rating for all players
+            for user_id in all_players:
+                # Only add data points if player has started playing
+                if game_number >= player_first_game[user_id]:
+                    if user_id in players_in_game:
+                        # Player participated, update their rating
+                        new_rating = int(players_in_game[user_id])
+                        player_current_rating[user_id] = new_rating
+                        player_histories[user_id].append((game_number, new_rating))
+                    else:
+                        # Player didn't participate, keep same rating
+                        player_histories[user_id].append((game_number, player_current_rating[user_id]))
 
         return player_histories
