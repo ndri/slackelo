@@ -4,6 +4,7 @@ Vibecoded Slack bot for tracking Elo ratings in games with 2 or more players.
 
 import os
 import logging
+import io
 from datetime import datetime
 from typing import Dict, Any
 from flask import Flask, request, jsonify, render_template
@@ -18,6 +19,9 @@ from utils import (
     get_ordinal_suffix,
 )
 from migrations import Migrations
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
 
 # Application version - update this when schema changes
 VERSION = "1.2"
@@ -556,6 +560,65 @@ def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
         say(f"Error fetching statistics: {str(e)}")
 
 
+@bolt_app.command("/chart")
+def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
+    """Show a rating chart for the channel"""
+    ack()
+
+    channel_id = command["channel_id"]
+    team_id = command["team_id"]
+
+    try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
+
+        # Get rating history for all players
+        player_histories = slackelo.get_player_rating_history(channel_id)
+
+        if not player_histories:
+            say(
+                "No games found for this channel yet. Start playing games with `/game`!"
+            )
+            return
+
+        # Create the chart
+        plt.figure(figsize=(12, 8))
+
+        # Plot each player's rating history
+        for user_id, history in player_histories.items():
+            games = [point[0] for point in history]
+            ratings = [point[1] for point in history]
+            plt.plot(games, ratings, marker='o', markersize=3, label=f'<@{user_id}>', linewidth=2)
+
+        plt.xlabel('Games Played', fontsize=12)
+        plt.ylabel('Rating', fontsize=12)
+        plt.title('Player Rating History', fontsize=14, fontweight='bold')
+        plt.grid(True, alpha=0.3)
+        plt.legend(loc='best', fontsize=10)
+
+        # Add a horizontal line at 1000 (starting rating)
+        plt.axhline(y=1000, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+
+        # Save to bytes buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+
+        # Upload file to Slack
+        client.files_upload_v2(
+            channel=channel_id,
+            file=buf,
+            filename="rating_chart.png",
+            title="Player Rating History",
+            initial_comment="📊 Here's the rating history chart for this channel!"
+        )
+
+    except Exception as e:
+        logger.error(f"Error in show_chart: {str(e)}")
+        say(f"Error generating chart: {str(e)}")
+
+
 @bolt_app.command("/help")
 def help_command(ack: callable, _, respond: callable) -> None:
     """Show available commands and usage"""
@@ -593,6 +656,7 @@ def help_command(ack: callable, _, respond: callable) -> None:
                             "• `/kfactor [value]` - View or set the k-factor for this channel",
                             "• `/gamble` - Toggle doubling your next rating change (win big or lose big)",
                             "• `/stats` - Show channel statistics",
+                            "• `/chart` - Show a rating history chart for all players",
                             "• `/undo` - Undo the last game in the channel",
                             "• `/help` - Show this help message",
                         ]

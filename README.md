@@ -16,6 +16,7 @@ Slackelo is a Slack bot that tracks Elo ratings for competitive games played wit
 - ↩️ **Undo Functionality**: Easily revert the most recent game if needed
 - 🎲 **Gambling**: Option to double the rating change of your next game (win big or lose big)
 - 📊 **Channel Statistics**: View fun statistics like highest rating, biggest comebacks, win streaks, and more
+- 📈 **Rating Charts**: Visualize rating history over time with interactive charts
 
 ## Installation
 
@@ -65,6 +66,7 @@ Do note that the official Slackelo bot relies on my server, which might not be a
    - `/kfactor`
    - `/gamble`
    - `/stats`
+   - `/chart`
    - `/undo`
    - `/help`
 
@@ -153,6 +155,7 @@ Once installed, you can use the following commands in any channel where Slackelo
 - `/kfactor [value]` - View or set the k-factor for this channel
 - `/gamble` - Double the rating change of your next game (win big or lose big)
 - `/stats` - Show channel statistics
+- `/chart` - Show a rating history chart for all players
 - `/undo` - Undo the last game in the channel
 - `/help` - Show a help message with available commands
 

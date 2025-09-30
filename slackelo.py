@@ -805,3 +805,51 @@ class Slackelo:
         )
 
         return game_count
+
+    def get_player_rating_history(self, channel_id: str) -> Dict[str, List[Tuple[int, int]]]:
+        """
+        Get rating history for all players in a channel.
+
+        Args:
+            channel_id: The channel ID to get history for
+
+        Returns:
+            Dictionary mapping user_id to list of (game_number, rating) tuples
+        """
+        # Get all games for this channel with player ratings
+        games = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                pg.rating_after,
+                g.timestamp,
+                g.id as game_id
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            ORDER BY g.timestamp ASC
+            """,
+            (channel_id,),
+        )
+
+        if not games:
+            return {}
+
+        # Build rating history for each player
+        player_histories = {}
+        player_game_counts = {}
+
+        for game in games:
+            user_id = game["user_id"]
+
+            if user_id not in player_histories:
+                player_histories[user_id] = [(0, 1000)]  # Start at game 0 with rating 1000
+                player_game_counts[user_id] = 0
+
+            player_game_counts[user_id] += 1
+            player_histories[user_id].append((
+                player_game_counts[user_id],
+                int(game["rating_after"])
+            ))
+
+        return player_histories

@@ -4,3 +4,4 @@ flask
 wheel
 uwsgi
 python-dotenv
+matplotlib
