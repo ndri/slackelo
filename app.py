@@ -604,6 +604,13 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         buf.seek(0)
+        
+        # Save to static/ directory with timestamp
+        os.makedirs('static', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'static/rating_chart_{timestamp}.png'
+        plt.savefig(filename, format='png', dpi=100, bbox_inches='tight')
+        
         plt.close()
 
         # Build color legend message with color indicators
