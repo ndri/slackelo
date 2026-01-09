@@ -4,7 +4,6 @@ Vibecoded Slack bot for tracking Elo ratings in games with 2 or more players.
 
 import os
 import logging
-import io
 from datetime import datetime
 from typing import Dict, Any
 from flask import Flask, request, jsonify, render_template
@@ -41,6 +40,9 @@ oauth_redirect_uri: str = os.environ.get("OAUTH_REDIRECT_URI")
 install_path: str = os.environ.get("INSTALL_PATH", "/install")
 redirect_uri_path: str = os.environ.get("REDIRECT_URI_PATH", "/oauth/redirect")
 success_url: str = os.environ.get("SUCCESS_URL", "/slackelo/success")
+
+# Public URL for serving static files
+public_url: str = os.environ.get("PUBLIC_URL", "http://localhost:5000")
 
 # Slack app credentials
 signing_secret = os.environ.get("SLACK_SIGNING_SECRET")
@@ -608,17 +610,13 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
         # Add a horizontal line at 1000 (starting rating)
         plt.axhline(y=1000, color='gray', linestyle='--', alpha=0.5, linewidth=1)
 
-        # Save to bytes buffer
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-        buf.seek(0)
-        
         # Save to static/ directory with timestamp
         os.makedirs('static', exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'static/rating_chart_{timestamp}.png'
-        plt.savefig(filename, format='png', dpi=100, bbox_inches='tight')
-        
+        filename = f'rating_chart_{timestamp}.png'
+        filepath = f'static/{filename}'
+        plt.savefig(filepath, format='png', dpi=100, bbox_inches='tight')
+
         plt.close()
 
         # Build color legend message with color indicators
@@ -658,16 +656,13 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
             indicator = color_emoji_map.get(hex_color, '●')
             legend_lines.append(f"{indicator} <@{user_id}>")
 
-        legend_message = "📊 *Player Rating History Chart*\n\n" + "\n".join(legend_lines)
+        # Generate public URL for the chart
+        chart_url = f"{public_url}/static/{filename}"
 
-        # Upload file to Slack
-        client.files_upload_v2(
-            channel=channel_id,
-            file=buf,
-            filename="rating_chart.png",
-            title="Player Rating History",
-            initial_comment=legend_message
-        )
+        legend_message = "📊 *Player Rating History Chart*\n\n" + "\n".join(legend_lines) + f"\n\n<{chart_url}|View Chart>"
+
+        # Post message with link to chart
+        say(legend_message)
 
     except Exception as e:
         logger.error(f"Error in show_chart: {str(e)}")

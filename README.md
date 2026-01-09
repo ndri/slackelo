@@ -123,6 +123,7 @@ Do note that the official Slackelo bot relies on my server, which might not be a
    # Server settings
    HOST=0.0.0.0
    PORT=8080
+   PUBLIC_URL=https://your-domain.com
    ```
 
 #### Step 4: Run the Application
