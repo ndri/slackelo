@@ -769,7 +769,7 @@ class Slackelo:
                 SELECT
                     pg.user_id,
                     pg.rating_after,
-                    g.created_at,
+                    g.timestamp,
                     g.id as game_id
                 FROM player_games pg
                 JOIN games g ON pg.game_id = g.id
@@ -783,8 +783,8 @@ class Slackelo:
             FROM player_game_order pg1
             JOIN player_game_order pg2
                 ON pg1.user_id = pg2.user_id
-                AND (pg2.created_at > pg1.created_at
-                     OR (pg2.created_at = pg1.created_at AND pg2.game_id > pg1.game_id))
+                AND (pg2.timestamp > pg1.timestamp
+                     OR (pg2.timestamp = pg1.timestamp AND pg2.game_id > pg1.game_id))
             GROUP BY pg1.user_id, pg1.rating_after
             HAVING comeback > 0
             ORDER BY comeback DESC
