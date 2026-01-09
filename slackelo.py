@@ -722,18 +722,30 @@ class Slackelo:
                     "streak": max_streak
                 }
 
-        # Biggest comeback (lowest rating to highest rating)
+        # Biggest comeback (lowest rating to highest rating, chronologically)
         biggest_comeback = self.db.execute_query(
             """
+            WITH player_game_order AS (
+                SELECT
+                    pg.user_id,
+                    pg.rating_after,
+                    g.created_at,
+                    g.id as game_id
+                FROM player_games pg
+                JOIN games g ON pg.game_id = g.id
+                WHERE g.channel_id = ?
+            )
             SELECT
-                pg.user_id,
-                MIN(pg.rating_after) as lowest_rating,
-                MAX(pg.rating_after) as highest_rating,
-                MAX(pg.rating_after) - MIN(pg.rating_after) as comeback
-            FROM player_games pg
-            JOIN games g ON pg.game_id = g.id
-            WHERE g.channel_id = ?
-            GROUP BY pg.user_id
+                pg1.user_id,
+                pg1.rating_after as lowest_rating,
+                MAX(pg2.rating_after) as highest_rating,
+                MAX(pg2.rating_after) - pg1.rating_after as comeback
+            FROM player_game_order pg1
+            JOIN player_game_order pg2
+                ON pg1.user_id = pg2.user_id
+                AND (pg2.created_at > pg1.created_at
+                     OR (pg2.created_at = pg1.created_at AND pg2.game_id > pg1.game_id))
+            GROUP BY pg1.user_id, pg1.rating_after
             HAVING comeback > 0
             ORDER BY comeback DESC
             LIMIT 1
