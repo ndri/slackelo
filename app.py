@@ -539,6 +539,10 @@ def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
         if "most_games" in stats:
             response += f"🎮 *Most games played:* <@{stats['most_games']['user_id']}> - {stats['most_games']['games']} games\n"
 
+        # Most 2nd place finishes
+        if "most_second_places" in stats:
+            response += f"🥈 *Born to runner-up:* <@{stats['most_second_places']['user_id']}> - {stats['most_second_places']['second_places']} second place finishes\n"
+
         # Longest win streak
         if "longest_win_streak" in stats:
             response += f"🔥 *Longest win streak:* <@{stats['longest_win_streak']['user_id']}> - {stats['longest_win_streak']['streak']} consecutive wins\n"

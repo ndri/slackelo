@@ -635,6 +635,26 @@ class Slackelo:
                 "games": int(most_games[0]["game_count"])
             }
 
+        # Most 2nd place finishes
+        most_second_places = self.db.execute_query(
+            """
+            SELECT pg.user_id, COUNT(*) as second_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ? AND pg.position = 2
+            GROUP BY pg.user_id
+            ORDER BY second_count DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if most_second_places and most_second_places[0]["second_count"] >= 2:
+            stats["most_second_places"] = {
+                "user_id": most_second_places[0]["user_id"],
+                "second_places": int(most_second_places[0]["second_count"])
+            }
+
         # Most volatile player (highest standard deviation in rating changes)
         most_volatile = self.db.execute_query(
             """
