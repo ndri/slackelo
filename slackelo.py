@@ -655,6 +655,26 @@ class Slackelo:
                 "second_places": int(most_second_places[0]["second_count"])
             }
 
+        # Most 0-point changes
+        most_zero_changes = self.db.execute_query(
+            """
+            SELECT pg.user_id, COUNT(*) as zero_count
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ? AND pg.rating_after - pg.rating_before = 0
+            GROUP BY pg.user_id
+            ORDER BY zero_count DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if most_zero_changes and most_zero_changes[0]["zero_count"] >= 2:
+            stats["most_zero_changes"] = {
+                "user_id": most_zero_changes[0]["user_id"],
+                "zero_changes": int(most_zero_changes[0]["zero_count"])
+            }
+
         # Most volatile player (highest standard deviation in rating changes)
         most_volatile = self.db.execute_query(
             """
