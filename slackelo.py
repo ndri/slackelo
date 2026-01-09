@@ -774,6 +774,53 @@ class Slackelo:
         if total_games:
             stats["total_games"] = int(total_games[0]["total_games"])
 
+        # Best gambler (most won through gambling)
+        # When gambling, rating change is doubled, so half of the change is from gambling
+        best_gambler = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                SUM((pg.rating_after - pg.rating_before) / 2.0) as total_gambled
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ? AND pg.gambled = 1
+            GROUP BY pg.user_id
+            HAVING total_gambled > 0
+            ORDER BY total_gambled DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if best_gambler:
+            stats["best_gambler"] = {
+                "user_id": best_gambler[0]["user_id"],
+                "total": int(best_gambler[0]["total_gambled"])
+            }
+
+        # Worst gambler (most lost through gambling)
+        worst_gambler = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                SUM((pg.rating_after - pg.rating_before) / 2.0) as total_gambled
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ? AND pg.gambled = 1
+            GROUP BY pg.user_id
+            HAVING total_gambled < 0
+            ORDER BY total_gambled ASC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if worst_gambler:
+            stats["worst_gambler"] = {
+                "user_id": worst_gambler[0]["user_id"],
+                "total": int(worst_gambler[0]["total_gambled"])
+            }
+
         return stats
 
     def reset_channel(self, channel_id: str) -> int:

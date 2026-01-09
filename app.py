@@ -553,6 +553,14 @@ def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
         if "most_consistent" in stats:
             response += f"🎯 *Most consistent player:* <@{stats['most_consistent']['user_id']}> - {stats['most_consistent']['volatility']} avg rating swing\n"
 
+        # Best gambler
+        if "best_gambler" in stats:
+            response += f"🎰 *Best gambler:* <@{stats['best_gambler']['user_id']}> - +{stats['best_gambler']['total']} points won through gambling\n"
+
+        # Worst gambler
+        if "worst_gambler" in stats:
+            response += f"🎲 *Worst gambler:* <@{stats['worst_gambler']['user_id']}> - {stats['worst_gambler']['total']} points lost through gambling\n"
+
         say(response)
 
     except Exception as e:
