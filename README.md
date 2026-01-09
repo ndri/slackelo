@@ -65,6 +65,7 @@ Do note that the official Slackelo bot relies on my server, which might not be a
    - `/history`
    - `/kfactor`
    - `/gamble`
+   - `/gamblers`
    - `/stats`
    - `/chart`
    - `/undo`
@@ -155,6 +156,7 @@ Once installed, you can use the following commands in any channel where Slackelo
 - `/history [@player]` - View your game history or another player's history
 - `/kfactor [value]` - View or set the k-factor for this channel
 - `/gamble` - Double the rating change of your next game (win big or lose big)
+- `/gamblers` - Show gambling leaderboard for the channel
 - `/stats` - Show channel statistics
 - `/chart` - Show a rating history chart for all players
 - `/undo` - Undo the last game in the channel

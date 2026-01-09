@@ -823,6 +823,33 @@ class Slackelo:
 
         return stats
 
+    def get_gambling_leaderboard(self, channel_id: str):
+        """
+        Get gambling statistics for all players in a channel.
+
+        Args:
+            channel_id: The channel ID to get gambling stats for
+
+        Returns:
+            List of dictionaries containing user_id and net gambling gains/losses
+        """
+        gambling_stats = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                SUM((pg.rating_after - pg.rating_before) / 2.0) as net_gambling,
+                COUNT(*) as gambles
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ? AND pg.gambled = 1
+            GROUP BY pg.user_id
+            ORDER BY net_gambling DESC
+            """,
+            (channel_id,),
+        )
+
+        return gambling_stats
+
     def reset_channel(self, channel_id: str) -> int:
         """
         Reset all data for a channel, including games and channel players.

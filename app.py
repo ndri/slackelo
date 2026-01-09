@@ -570,6 +570,58 @@ def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
         say(f"Error fetching statistics: {str(e)}")
 
 
+@bolt_app.command("/gamblers")
+def show_gamblers(ack: callable, command: Dict[str, Any], say: callable):
+    """Show gambling leaderboard for the channel"""
+    ack()
+
+    channel_id = command["channel_id"]
+    team_id = command["team_id"]
+
+    try:
+        # Make sure channel exists with team_id set
+        slackelo.get_or_create_channel(channel_id, team_id)
+        gambling_stats = slackelo.get_gambling_leaderboard(channel_id)
+
+        if not gambling_stats:
+            say("No one has gambled in this channel yet! Use `/gamble` to start.")
+            return
+
+        response = "*Gambling Leaderboard* 🎰\n\n"
+
+        for i, gambler in enumerate(gambling_stats, 1):
+            net_points = int(gambler["net_gambling"])
+            gambles = int(gambler["gambles"])
+
+            # Choose emoji based on position and net result
+            if i == 1 and net_points > 0:
+                emoji = "🥇"
+            elif i == 2 and net_points > 0:
+                emoji = "🥈"
+            elif i == 3 and net_points > 0:
+                emoji = "🥉"
+            elif net_points > 0:
+                emoji = "💰"
+            elif net_points < 0:
+                emoji = "📉"
+            else:
+                emoji = "➖"
+
+            # Format the points with + or - sign
+            if net_points > 0:
+                points_str = f"+{net_points}"
+            else:
+                points_str = f"{net_points}"
+
+            response += f"{emoji} {i}. <@{gambler['user_id']}> - {points_str} points ({gambles} gamble{'s' if gambles != 1 else ''})\n"
+
+        say(response)
+
+    except Exception as e:
+        logger.error(f"Error in show_gamblers: {str(e)}")
+        say(f"Error fetching gambling leaderboard: {str(e)}")
+
+
 @bolt_app.command("/chart")
 def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
     """Show a rating chart for the channel"""
@@ -705,6 +757,7 @@ def help_command(ack: callable, _, respond: callable) -> None:
                             "• `/history [@player]` - View your game history or another player's history",
                             "• `/kfactor [value]` - View or set the k-factor for this channel",
                             "• `/gamble` - Toggle doubling your next rating change (win big or lose big)",
+                            "• `/gamblers` - Show gambling leaderboard for the channel",
                             "• `/stats` - Show channel statistics",
                             "• `/chart` - Show a rating history chart for all players",
                             "• `/undo` - Undo the last game in the channel",
