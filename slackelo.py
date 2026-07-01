@@ -403,18 +403,17 @@ class Slackelo:
         """
         leaderboard = self.db.execute_query(
             """
-            SELECT p.user_id, cp.rating, COUNT(pg.game_id) as games_played
+            SELECT p.user_id, cp.rating,
+                (SELECT COUNT(*) FROM player_games pg
+                 JOIN games g ON pg.game_id = g.id
+                 WHERE pg.user_id = p.user_id AND g.channel_id = cp.channel_id) as games_played
             FROM channel_players cp
             JOIN players p ON cp.user_id = p.user_id
-            LEFT JOIN player_games pg ON p.user_id = pg.user_id
-            LEFT JOIN games g ON pg.game_id = g.id
             WHERE cp.channel_id = ?
-            AND (g.channel_id = ? OR g.channel_id IS NULL)
-            GROUP BY p.user_id, cp.rating
             ORDER BY cp.rating DESC
             LIMIT ?
             """,
-            (channel_id, channel_id, limit),
+            (channel_id, limit),
         )
         return leaderboard
 
