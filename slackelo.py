@@ -140,8 +140,8 @@ class Slackelo:
         Returns:
             True if the player is gambling, False otherwise
         """
-        channel_player = self.get_or_create_channel_player(user_id, channel_id)
-        return bool(channel_player.get("gambling", 0))
+        channel_player = self.get_channel_player(user_id, channel_id)
+        return bool(channel_player.get("gambling", 0)) if channel_player else False
 
     def get_channel_k_factor(self, channel_id: str) -> int:
         """Get the k-factor for a specific channel."""
