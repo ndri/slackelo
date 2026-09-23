@@ -8,6 +8,7 @@ from sqlite_connector import SQLiteConnector
 from elo import calculate_group_elo_with_draws
 
 DEFAULT_K_FACTOR = 32
+DEFAULT_RATING = 1000
 
 
 class Slackelo:
@@ -77,7 +78,7 @@ class Slackelo:
         if not channel_player:
             self.db.execute_non_query(
                 "INSERT INTO channel_players (user_id, channel_id, rating, gambling) VALUES (?, ?, ?, ?)",
-                (user_id, channel_id, 1000, 0),
+                (user_id, channel_id, DEFAULT_RATING, 0),
             )
             channel_player = self.db.execute_query(
                 "SELECT * FROM channel_players WHERE user_id = ? AND channel_id = ?",
@@ -86,6 +87,23 @@ class Slackelo:
 
         return channel_player[0]
         
+    def get_channel_player(
+        self, user_id: str, channel_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a player's rating row for a channel without creating one.
+
+        Returns None if the player has not joined the channel yet. Use this
+        instead of get_or_create_channel_player for read-only operations, so
+        that merely looking a player up does not put them on the leaderboard.
+        """
+        channel_player = self.db.execute_query(
+            "SELECT * FROM channel_players WHERE user_id = ? AND channel_id = ?",
+            (user_id, channel_id),
+        )
+
+        return channel_player[0] if channel_player else None
+
     def toggle_player_gambling(self, user_id: str, channel_id: str) -> bool:
         """
         Toggle a player's gambling status for the next game.
@@ -305,11 +323,18 @@ class Slackelo:
                 player_positions[player_id] = position
             position += len(rank_group)
 
-        # Get pre-game ratings
+        # Get pre-game ratings and gambling status. A simulation must not
+        # touch the database, so players who have not played in this channel
+        # are treated as unrated rather than being added to it.
         pre_game_ratings = {}
+        player_gambling = {}
         for player_id in flat_player_ids:
-            pre_game_ratings[player_id] = self.get_player_channel_rating(
-                player_id, channel_id
+            channel_player = self.get_channel_player(player_id, channel_id)
+            pre_game_ratings[player_id] = (
+                channel_player["rating"] if channel_player else DEFAULT_RATING
+            )
+            player_gambling[player_id] = (
+                bool(channel_player.get("gambling", 0)) if channel_player else False
             )
 
         # Get channel-specific k-factor
@@ -328,11 +353,8 @@ class Slackelo:
         # Map new ratings to player IDs, accounting for gambling
         post_game_ratings = {}
         for i, player_id in enumerate(flat_player_ids):
-            # Check if player is gambling
-            player_gambling = self.is_player_gambling(player_id, channel_id)
-            
             # Apply gambling multiplier if player is gambling
-            multiplier = 2 if player_gambling else 1
+            multiplier = 2 if player_gambling[player_id] else 1
             adjusted_change = rating_changes[i] * multiplier
             
             post_game_ratings[player_id] = current_ratings[i] + adjusted_change
