@@ -41,8 +41,9 @@ install_path: str = os.environ.get("INSTALL_PATH", "/install")
 redirect_uri_path: str = os.environ.get("REDIRECT_URI_PATH", "/oauth/redirect")
 success_url: str = os.environ.get("SUCCESS_URL", "/slackelo/success")
 
-# Public URL for serving static files
-public_url: str = os.environ.get("PUBLIC_URL", "http://localhost:5000")
+# Public URL for serving static files. Falls back to deriving the app's base
+# URL from OAUTH_REDIRECT_URI so links never point at localhost in production.
+public_url: str = os.environ.get("PUBLIC_URL", "").rstrip("/")
 
 # Slack app credentials
 signing_secret = os.environ.get("SLACK_SIGNING_SECRET")
@@ -68,6 +69,17 @@ if not client_id:
 if not client_secret:
     raise ValueError(
         "Missing required environment variable: SLACK_CLIENT_SECRET"
+    )
+
+if not public_url:
+    # OAUTH_REDIRECT_URI is required and always points at this app, so its base
+    # is a safe stand-in when PUBLIC_URL is not configured.
+    public_url = oauth_redirect_uri.rstrip("/")
+    if public_url.endswith(redirect_uri_path):
+        public_url = public_url[: -len(redirect_uri_path)].rstrip("/")
+    logger.warning(
+        f"PUBLIC_URL is not set, falling back to {public_url} "
+        "derived from OAUTH_REDIRECT_URI"
     )
 
 # Run database migrations before initializing app
