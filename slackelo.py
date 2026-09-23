@@ -413,9 +413,15 @@ class Slackelo:
         return game_timestamp
 
     def get_player_channel_rating(self, user_id: str, channel_id: str) -> int:
-        """Get a player's rating for a specific channel."""
-        channel_player = self.get_or_create_channel_player(user_id, channel_id)
-        return channel_player["rating"]
+        """
+        Get a player's rating for a specific channel.
+
+        Players who have not played in the channel are reported at the default
+        rating without being added to it, so looking someone up does not put
+        them on the leaderboard.
+        """
+        channel_player = self.get_channel_player(user_id, channel_id)
+        return channel_player["rating"] if channel_player else DEFAULT_RATING
 
     def get_channel_leaderboard(self, channel_id: str, limit: int = 10):
         """
