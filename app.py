@@ -671,7 +671,17 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
         for user_id, history in player_histories.items():
             games = [point[0] for point in history]
             ratings = [point[1] for point in history]
-            line = plt.plot(games, ratings, marker='o', markersize=3, linewidth=2)[0]
+            # Only mark the games this player actually took part in; the line
+            # still runs through the games they sat out
+            played = [index for index, point in enumerate(history) if point[2]]
+            line = plt.plot(
+                games,
+                ratings,
+                marker='o',
+                markersize=5,
+                linewidth=2,
+                markevery=played,
+            )[0]
             color_map[user_id] = line.get_color()
 
         plt.xlabel('Games Played', fontsize=12)
@@ -691,8 +701,7 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
 
         plt.close()
 
-        # Build color legend message with color indicators
-        # Matplotlib cycles through colors, so we need to handle repeats
+        # Build color legend message, ordered by current rating (highest first)
         def rgb_to_hex(rgb_tuple):
             """Convert RGB tuple (0-1 range) to hex color"""
             return '#{:02x}{:02x}{:02x}'.format(
@@ -701,22 +710,15 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
                 int(rgb_tuple[2] * 255)
             )
 
-        # Define color emoji/indicators for common matplotlib colors
-        color_emoji_map = {
-            '#1f77b4': '🔵',  # blue
-            '#ff7f0e': '🟠',  # orange
-            '#2ca02c': '🟢',  # green
-            '#d62728': '🔴',  # red
-            '#9467bd': '🟣',  # purple
-            '#8c564b': '🟤',  # brown
-            '#e377c2': '🩷',  # pink
-            '#7f7f7f': '⚫',  # gray
-            '#bcbd22': '🟡',  # yellow
-            '#17becf': '🔷',  # cyan
-        }
+        # The last point of a player's history is their current rating
+        ranked_players = sorted(
+            color_map.items(),
+            key=lambda item: player_histories[item[0]][-1][1],
+            reverse=True,
+        )
 
         legend_lines = []
-        for user_id, color in color_map.items():
+        for user_id, color in ranked_players:
             # Normalize color to hex if it's in a different format
             if isinstance(color, str) and color.startswith('#'):
                 hex_color = color.lower()
@@ -724,9 +726,8 @@ def show_chart(ack: callable, command: Dict[str, Any], say: callable, client):
                 # Handle tuple RGB format
                 hex_color = rgb_to_hex(color)
 
-            # Get emoji indicator for this color, or use a colored square
-            indicator = color_emoji_map.get(hex_color, '●')
-            legend_lines.append(f"{indicator} <@{user_id}>")
+            # Slack renders a color swatch next to a bare hex code
+            legend_lines.append(f"{hex_color} <@{user_id}>")
 
         # Generate public URL for the chart
         chart_url = f"{public_url}/static/{filename}"

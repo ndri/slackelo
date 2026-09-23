@@ -931,7 +931,9 @@ class Slackelo:
 
         return game_count
 
-    def get_player_rating_history(self, channel_id: str) -> Dict[str, List[Tuple[int, int]]]:
+    def get_player_rating_history(
+        self, channel_id: str
+    ) -> Dict[str, List[Tuple[int, int, bool]]]:
         """
         Get rating history for all players in a channel, chronologically by game number.
 
@@ -939,8 +941,11 @@ class Slackelo:
             channel_id: The channel ID to get history for
 
         Returns:
-            Dictionary mapping user_id to list of (game_number, rating) tuples
-            where game_number is the chronological game number in the channel
+            Dictionary mapping user_id to list of (game_number, rating, played)
+            tuples, where game_number is the chronological game number in the
+            channel and played is True only for games the player took part in.
+            Each player's list starts with the rating they began from, so every
+            history shares a common baseline.
         """
         # Get all games in chronological order with a game number
         all_games = self.db.execute_query(
@@ -964,6 +969,7 @@ class Slackelo:
             """
             SELECT
                 pg.user_id,
+                pg.rating_before,
                 pg.rating_after,
                 g.id as game_id
             FROM player_games pg
@@ -986,15 +992,24 @@ class Slackelo:
         all_players = set(pg["user_id"] for pg in player_games)
 
         for user_id in all_players:
-            player_histories[user_id] = []
-            player_current_rating[user_id] = 1000
             # Find first game this player participated in
-            first_game = min(
-                game_id_to_number[pg["game_id"]]
-                for pg in player_games
-                if pg["user_id"] == user_id
+            first_player_game = min(
+                (pg for pg in player_games if pg["user_id"] == user_id),
+                key=lambda pg: game_id_to_number[pg["game_id"]],
             )
+            first_game = game_id_to_number[first_player_game["game_id"]]
+            starting_rating = (
+                int(first_player_game["rating_before"])
+                if first_player_game["rating_before"] is not None
+                else 1000
+            )
+
             player_first_game[user_id] = first_game
+            player_current_rating[user_id] = starting_rating
+            # Anchor the line at the rating the player started from, so every
+            # player's history begins at the same baseline rather than at
+            # whatever they scored in their first game.
+            player_histories[user_id] = [(first_game - 1, starting_rating, False)]
 
         # Process each game chronologically
         for game_number in range(1, len(all_games) + 1):
@@ -1016,9 +1031,11 @@ class Slackelo:
                         # Player participated, update their rating
                         new_rating = int(players_in_game[user_id])
                         player_current_rating[user_id] = new_rating
-                        player_histories[user_id].append((game_number, new_rating))
+                        player_histories[user_id].append((game_number, new_rating, True))
                     else:
                         # Player didn't participate, keep same rating
-                        player_histories[user_id].append((game_number, player_current_rating[user_id]))
+                        player_histories[user_id].append(
+                            (game_number, player_current_rating[user_id], False)
+                        )
 
         return player_histories
