@@ -795,6 +795,48 @@ class Slackelo:
                     "streak": max_streak
                 }
 
+        # Longest losing streak (consecutive last place finishes)
+        all_last_places = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                pg.position,
+                (SELECT MAX(position) FROM player_games
+                 WHERE game_id = pg.game_id) as last_position,
+                g.timestamp
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            ORDER BY pg.user_id, g.timestamp
+            """,
+            (channel_id,),
+        )
+
+        if all_last_places:
+            current_streak = 0
+            max_streak = 0
+            max_streak_user = None
+            current_user = None
+
+            for game in all_last_places:
+                if game["user_id"] != current_user:
+                    current_user = game["user_id"]
+                    current_streak = 0
+
+                if game["position"] == game["last_position"]:
+                    current_streak += 1
+                    if current_streak > max_streak:
+                        max_streak = current_streak
+                        max_streak_user = game["user_id"]
+                else:
+                    current_streak = 0
+
+            if max_streak > 1:
+                stats["longest_losing_streak"] = {
+                    "user_id": max_streak_user,
+                    "streak": max_streak
+                }
+
         # Biggest comeback (lowest rating to highest rating, chronologically)
         biggest_comeback = self.db.execute_query(
             """
@@ -832,6 +874,70 @@ class Slackelo:
                 "comeback": int(biggest_comeback[0]["comeback"]),
                 "from": int(biggest_comeback[0]["lowest_rating"]),
                 "to": int(biggest_comeback[0]["highest_rating"])
+            }
+
+        # Biggest collapse (highest rating to lowest rating afterwards)
+        biggest_collapse = self.db.execute_query(
+            """
+            WITH player_game_order AS (
+                SELECT
+                    pg.user_id,
+                    pg.rating_after,
+                    g.timestamp,
+                    g.id as game_id
+                FROM player_games pg
+                JOIN games g ON pg.game_id = g.id
+                WHERE g.channel_id = ?
+            )
+            SELECT
+                pg1.user_id,
+                pg1.rating_after as highest_rating,
+                MIN(pg2.rating_after) as lowest_rating,
+                pg1.rating_after - MIN(pg2.rating_after) as collapse
+            FROM player_game_order pg1
+            JOIN player_game_order pg2
+                ON pg1.user_id = pg2.user_id
+                AND (pg2.timestamp > pg1.timestamp
+                     OR (pg2.timestamp = pg1.timestamp AND pg2.game_id > pg1.game_id))
+            GROUP BY pg1.user_id, pg1.rating_after
+            HAVING collapse > 0
+            ORDER BY collapse DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if biggest_collapse and biggest_collapse[0]["collapse"] > 100:
+            stats["biggest_collapse"] = {
+                "user_id": biggest_collapse[0]["user_id"],
+                "collapse": int(biggest_collapse[0]["collapse"]),
+                "from": int(biggest_collapse[0]["highest_rating"]),
+                "to": int(biggest_collapse[0]["lowest_rating"])
+            }
+
+        # Giant slayer (beat the opponent rated furthest above them)
+        giant_slayer = self.db.execute_query(
+            """
+            SELECT
+                winner.user_id,
+                loser.user_id as beaten_user_id,
+                loser.rating_before - winner.rating_before as rating_gap
+            FROM player_games winner
+            JOIN player_games loser ON winner.game_id = loser.game_id
+            JOIN games g ON winner.game_id = g.id
+            WHERE g.channel_id = ?
+            AND winner.position < loser.position
+            ORDER BY rating_gap DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if giant_slayer and giant_slayer[0]["rating_gap"] > 0:
+            stats["giant_slayer"] = {
+                "user_id": giant_slayer[0]["user_id"],
+                "beaten_user_id": giant_slayer[0]["beaten_user_id"],
+                "gap": int(giant_slayer[0]["rating_gap"])
             }
 
         # Total games played in channel
@@ -892,6 +998,33 @@ class Slackelo:
             stats["worst_gambler"] = {
                 "user_id": worst_gambler[0]["user_id"],
                 "total": int(worst_gambler[0]["total_gambled"])
+            }
+
+        # Gambling addict (gambled in the highest proportion of their games)
+        gambling_addict = self.db.execute_query(
+            """
+            SELECT
+                pg.user_id,
+                COUNT(*) as game_count,
+                SUM(pg.gambled) as gamble_count,
+                SUM(pg.gambled) * 1.0 / COUNT(*) as gamble_rate
+            FROM player_games pg
+            JOIN games g ON pg.game_id = g.id
+            WHERE g.channel_id = ?
+            GROUP BY pg.user_id
+            HAVING game_count >= 3 AND gamble_count > 0
+            ORDER BY gamble_rate DESC, gamble_count DESC
+            LIMIT 1
+            """,
+            (channel_id,),
+        )
+
+        if gambling_addict:
+            stats["gambling_addict"] = {
+                "user_id": gambling_addict[0]["user_id"],
+                "gambles": int(gambling_addict[0]["gamble_count"]),
+                "games": int(gambling_addict[0]["game_count"]),
+                "rate": round(gambling_addict[0]["gamble_rate"] * 100)
             }
 
         return stats

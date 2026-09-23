@@ -577,9 +577,17 @@ def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
         if "longest_win_streak" in stats:
             response += f"🔥 *Longest win streak:* <@{stats['longest_win_streak']['user_id']}> - {stats['longest_win_streak']['streak']} consecutive wins\n"
 
+        # Longest losing streak
+        if "longest_losing_streak" in stats:
+            response += f"🧊 *Longest losing streak:* <@{stats['longest_losing_streak']['user_id']}> - {stats['longest_losing_streak']['streak']} consecutive last place finishes\n"
+
         # Biggest comeback
         if "biggest_comeback" in stats:
             response += f"💪 *Biggest comeback:* <@{stats['biggest_comeback']['user_id']}> - {stats['biggest_comeback']['comeback']} point rise (from {stats['biggest_comeback']['from']} to {stats['biggest_comeback']['to']})\n"
+
+        # Biggest collapse
+        if "biggest_collapse" in stats:
+            response += f"🪂 *Biggest collapse:* <@{stats['biggest_collapse']['user_id']}> - {stats['biggest_collapse']['collapse']} point fall (from {stats['biggest_collapse']['from']} to {stats['biggest_collapse']['to']})\n"
 
         # Most volatile
         if "most_volatile" in stats:
@@ -589,13 +597,22 @@ def show_statistics(ack: callable, command: Dict[str, Any], say: callable):
         if "most_consistent" in stats:
             response += f"🎯 *Most consistent player:* <@{stats['most_consistent']['user_id']}> - {stats['most_consistent']['volatility']} avg rating swing\n"
 
+        # Giant slayer
+        if "giant_slayer" in stats:
+            response += f"🗡️ *Giant slayer:* <@{stats['giant_slayer']['user_id']}> - beat <@{stats['giant_slayer']['beaten_user_id']}>, rated {stats['giant_slayer']['gap']} points higher\n"
+
         # Best gambler
         if "best_gambler" in stats:
             response += f"🎰 *Best gambler:* <@{stats['best_gambler']['user_id']}> - +{stats['best_gambler']['total']} points won through gambling\n"
 
-        # Worst gambler
+        # Worst gambler. The stored total is negative; "lost" already carries
+        # the sign, so show the magnitude
         if "worst_gambler" in stats:
-            response += f"🎲 *Worst gambler:* <@{stats['worst_gambler']['user_id']}> - {stats['worst_gambler']['total']} points lost through gambling\n"
+            response += f"🎲 *Worst gambler:* <@{stats['worst_gambler']['user_id']}> - {abs(stats['worst_gambler']['total'])} points lost through gambling\n"
+
+        # Gambling addict
+        if "gambling_addict" in stats:
+            response += f"🃏 *Gambling addict:* <@{stats['gambling_addict']['user_id']}> - gambled in {stats['gambling_addict']['gambles']} of {stats['gambling_addict']['games']} games ({stats['gambling_addict']['rate']}%)\n"
 
         say(response)
 
