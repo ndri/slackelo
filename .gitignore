@@ -15,6 +15,11 @@ ENV/
 .vscode/
 .idea/
 
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+
 # Misc
 .DS_Store
 *.log

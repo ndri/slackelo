@@ -177,6 +177,29 @@ The K-factor determines how dramatically ratings change after each game:
 
 Read more about the Elo rating system on [Wikipedia](https://en.wikipedia.org/wiki/Elo_rating_system).
 
+## Tests
+
+Install the development dependencies and run the suite:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+The tests run against a throwaway SQLite database in a temporary directory, so
+your own `.env` and `slackelo.db` are never touched. They cover the Elo maths,
+the command parsing, the database layer, the schema migrations, every slash
+command end to end, and the HTTP routes.
+
+Run pytest from the repository root: `Migrations` looks for the `migrations/`
+directory relative to the working directory.
+
+To see coverage:
+
+```bash
+coverage run -m pytest && coverage report -m
+```
+
 ## Contributing
 
 Contributions are welcome! Feel free to submit a pull request.

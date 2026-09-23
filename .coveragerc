@@ -1,0 +1,10 @@
+[run]
+source = .
+omit =
+    tests/*
+    venv/*
+    wsgi.py
+
+[report]
+exclude_also =
+    if __name__ == .__main__.:
