@@ -277,11 +277,12 @@ def show_leaderboard(ack: callable, command: Dict[str, Any], say: callable):
 
     channel_id = command["channel_id"]
     team_id = command["team_id"]
-    limit = 10
 
+    # Show everyone unless a count is given, e.g. `/leaderboard 10`
+    limit = None
     text = command["text"].strip()
     if text and text.isdigit():
-        limit = min(int(text), 25)
+        limit = max(int(text), 1)
 
     try:
         # Make sure channel exists with team_id set
@@ -295,8 +296,21 @@ def show_leaderboard(ack: callable, command: Dict[str, Any], say: callable):
             return
 
         response = "*Channel Leaderboard*\n"
+        rank = 0
+        previous_rating = None
         for i, player in enumerate(leaderboard):
-            response += f"{i+1}. <@{player['user_id']}>: {player['rating']} ({player['games_played']} games)\n"
+            # Players on the same rating share a rank, and the ranks after a
+            # tie skip accordingly (1, 2, 2, 4)
+            if player["rating"] != previous_rating:
+                rank = i + 1
+                previous_rating = player["rating"]
+
+            games_played = player["games_played"]
+            games_label = "game" if games_played == 1 else "games"
+            response += (
+                f"{rank}. <@{player['user_id']}>: {player['rating']} "
+                f"({games_played} {games_label})\n"
+            )
 
         say(response)
 

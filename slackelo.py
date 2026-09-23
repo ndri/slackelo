@@ -423,14 +423,17 @@ class Slackelo:
         channel_player = self.get_channel_player(user_id, channel_id)
         return channel_player["rating"] if channel_player else DEFAULT_RATING
 
-    def get_channel_leaderboard(self, channel_id: str, limit: int = 10):
+    def get_channel_leaderboard(
+        self, channel_id: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Get the leaderboard for a specific channel.
 
-        Returns player ratings along with the number of games played in the channel.
+        Returns player ratings along with the number of games played in the
+        channel, highest rating first. Every player in the channel is returned
+        unless a limit is given.
         """
-        leaderboard = self.db.execute_query(
-            """
+        query = """
             SELECT p.user_id, cp.rating,
                 (SELECT COUNT(*) FROM player_games pg
                  JOIN games g ON pg.game_id = g.id
@@ -439,11 +442,14 @@ class Slackelo:
             JOIN players p ON cp.user_id = p.user_id
             WHERE cp.channel_id = ?
             ORDER BY cp.rating DESC
-            LIMIT ?
-            """,
-            (channel_id, limit),
-        )
-        return leaderboard
+        """
+        params: tuple = (channel_id,)
+
+        if limit is not None:
+            query += " LIMIT ?"
+            params += (limit,)
+
+        return self.db.execute_query(query, params)
 
     def get_player_game_history(
         self, user_id: str, channel_id: str, limit: int = 10
