@@ -712,3 +712,63 @@ class TestErrorsAreReportedNotRaised:
         response = reply(app_module.simulate_game, text=mentions(ALICE, BOB))
 
         assert "Error simulating game" in response
+
+
+class TestChartColourStability:
+    """
+    A player's line should keep its colour, so charts posted weeks apart can
+    be read against each other.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _isolated_static_dir(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        return tmp_path
+
+    @staticmethod
+    def legend(response):
+        """The legend as a {user_id: colour} mapping."""
+        return {
+            user_id: colour
+            for colour, user_id in re.findall(
+                r"^(#[0-9a-f]{6}) <@(U\w+)>$", response, re.MULTILINE
+            )
+        }
+
+    def test_colours_follow_the_order_players_joined(
+        self, slackelo, app_module, game, reply
+    ):
+        game(CHANNEL, CAROL, DAVE)
+        game(CHANNEL, ALICE, BOB)
+
+        colours = self.legend(reply(app_module.show_chart))
+        # Whatever the palette is, the first pair to play takes the first two
+        # colours and the next pair the two after that.
+        assert len({*colours.values()}) == 4
+        assert colours[CAROL] != colours[ALICE]
+
+    def test_a_new_player_does_not_change_anyone_elses_colour(
+        self, slackelo, app_module, game, reply
+    ):
+        game(CHANNEL, ALICE, BOB)
+        before = self.legend(reply(app_module.show_chart))
+
+        game(CHANNEL, CAROL, DAVE)
+        after = self.legend(reply(app_module.show_chart))
+
+        assert after[ALICE] == before[ALICE]
+        assert after[BOB] == before[BOB]
+
+    def test_playing_more_games_does_not_change_colours(
+        self, slackelo, app_module, game, reply
+    ):
+        game(CHANNEL, ALICE, BOB, CAROL)
+        before = self.legend(reply(app_module.show_chart))
+
+        # Reverse the standings entirely; the legend reorders but the colours
+        # belong to the players, not to their rank.
+        for _ in range(3):
+            game(CHANNEL, CAROL, BOB, ALICE)
+        after = self.legend(reply(app_module.show_chart))
+
+        assert after == before

@@ -1158,6 +1158,7 @@ class Slackelo:
         # Get all unique players and their first game
         all_players = set(pg["user_id"] for pg in player_games)
 
+        player_starts = {}
         for user_id in all_players:
             # Find first game this player participated in
             first_player_game = min(
@@ -1170,6 +1171,18 @@ class Slackelo:
                 if first_player_game["rating_before"] is not None
                 else 1000
             )
+
+            player_starts[user_id] = (first_game, starting_rating)
+
+        # Add players in the order they first played, so the chart gives each
+        # one the same colour every time it is drawn. Iterating the set above
+        # would leave the order to string hashing, which is reseeded on every
+        # restart. Joining in the order players arrived also means a newcomer
+        # takes the next unused colour instead of shifting everyone else's.
+        for user_id in sorted(
+            all_players, key=lambda uid: (player_starts[uid][0], uid)
+        ):
+            first_game, starting_rating = player_starts[user_id]
 
             player_first_game[user_id] = first_game
             player_current_rating[user_id] = starting_rating

@@ -2,6 +2,9 @@
 Tests for the leaderboard, per-player history and the chart's rating series.
 """
 
+import os
+
+from conftest import REPO_ROOT
 from helpers import (
     ALICE,
     BOB,
@@ -220,3 +223,82 @@ class TestRatingHistoryWithoutResults:
         slackelo.db.execute_non_query("DELETE FROM player_games")
 
         assert slackelo.get_player_rating_history(CHANNEL) == {}
+
+
+class TestRatingHistoryOrdering:
+    """
+    The chart colours players in the order this mapping hands them over, so
+    the order has to be stable. It used to come from iterating a set, which
+    Python reseeds on every restart.
+    """
+
+    def test_players_come_back_in_the_order_they_first_played(
+        self, slackelo, game
+    ):
+        game(CHANNEL, CAROL, DAVE)
+        game(CHANNEL, ALICE, BOB)
+
+        history = slackelo.get_player_rating_history(CHANNEL)
+        assert list(history) == [CAROL, DAVE, ALICE, BOB]
+
+    def test_players_joining_together_are_ordered_predictably(
+        self, slackelo, game
+    ):
+        game(CHANNEL, DAVE, CAROL)
+
+        history = slackelo.get_player_rating_history(CHANNEL)
+        assert list(history) == [CAROL, DAVE]
+
+    def test_a_newcomer_goes_on_the_end(self, slackelo, game):
+        game(CHANNEL, ALICE, BOB)
+        before = list(slackelo.get_player_rating_history(CHANNEL))
+
+        game(CHANNEL, ALICE, CAROL)
+        after = list(slackelo.get_player_rating_history(CHANNEL))
+
+        # Everyone keeps their place, so nobody's colour moves.
+        assert after == before + [CAROL]
+
+    def test_the_order_does_not_change_between_processes(self, tmp_path):
+        """
+        Run the same channel in fresh interpreters with different hash seeds.
+        String hashing is reseeded per process, so a set-based order would
+        differ between these runs.
+        """
+        import subprocess
+        import sys
+        import textwrap
+
+        script = textwrap.dedent(
+            f"""
+            import sys
+            sys.path.insert(0, {str(REPO_ROOT)!r})
+            from migrations import Migrations
+            from slackelo import Slackelo
+
+            db = sys.argv[1]
+            Migrations(db).migrate_to_version("1.2")
+
+            slackelo = Slackelo(db)
+            slackelo.create_game("C01CHANNEL", [["U03CAROL"], ["U04DAVE"]])
+            slackelo.create_game("C01CHANNEL", [["U01ALICE"], ["U02BOB"]])
+            # create_game stamps whole seconds, so space the games out.
+            slackelo.db.execute_non_query("UPDATE games SET timestamp = id * 60")
+
+            print(",".join(slackelo.get_player_rating_history("C01CHANNEL")))
+            """
+        )
+
+        orders = set()
+        for seed in ("0", "1", "42"):
+            result = subprocess.run(
+                [sys.executable, "-c", script, str(tmp_path / f"{seed}.db")],
+                capture_output=True,
+                text=True,
+                cwd=REPO_ROOT,
+                env={**os.environ, "PYTHONHASHSEED": seed},
+            )
+            assert result.returncode == 0, result.stderr
+            orders.add(result.stdout.strip())
+
+        assert orders == {"U03CAROL,U04DAVE,U01ALICE,U02BOB"}
